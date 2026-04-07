@@ -415,19 +415,8 @@ Rules:
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "28px", maxWidth: 680, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
 
         {/* ══ LOADING ══ */}
-        {loading && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 16, textAlign: "center" }}>
-            <div style={{ fontSize: 48 }}>✦</div>
-            <div style={{ fontSize: 16, color: "#888" }}>Loading your notes…</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#348193", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
-            </div>
-            <style>{`@keyframes pulse{0%,100%{opacity:0.2}50%{opacity:1}}`}</style>
-          </div>
-        )}
-
         {/* ══ SETUP ══ */}
-        {!loading && step === STEPS.SETUP && (
+        {step === STEPS.SETUP && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 8 }}>Connect your tools</div>
@@ -472,7 +461,7 @@ Rules:
         )}
 
         {/* ══ TEAM CHECK-IN ══ */}
-        {!loading && step === STEPS.CHECKIN && (
+        {step === STEPS.CHECKIN && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -514,7 +503,7 @@ Rules:
         )}
 
         {/* ══ MARKETING ══ */}
-        {!loading && step === STEPS.MARKETING && (
+        {step === STEPS.MARKETING && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>📣 Marketing Check-In</div>
@@ -538,7 +527,7 @@ Rules:
         )}
 
         {/* ══ WEEK AHEAD ══ */}
-        {!loading && step === STEPS.WEEK && (
+        {step === STEPS.WEEK && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>📅 Week Ahead</div>
@@ -556,7 +545,7 @@ Rules:
         )}
 
         {/* ══ DASHBOARD ══ */}
-        {!loading && step === STEPS.DASHBOARD && (
+        {step === STEPS.DASHBOARD && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>🗂️ Encore Dashboard</div>
@@ -636,7 +625,7 @@ Rules:
               {step === STEPS.DASHBOARD && (
                 <button onClick={() => setStep(STEPS.WEEK)} style={ghostBtn}>← Back</button>
               )}
-              <button onClick={() => { saveNotes(); setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>
+              <button onClick={() => { setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>
                 Finish & Extract Action Items →
               </button>
             </div>
@@ -651,7 +640,7 @@ Rules:
         )}
 
         {/* ══ PROCESSING ══ */}
-        {!loading && step === STEPS.PROCESSING && (
+        {step === STEPS.PROCESSING && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 48 }}>✦</div>
             <div style={{ fontSize: 20, fontWeight: "bold" }}>Reading your notes…</div>
@@ -664,7 +653,7 @@ Rules:
         )}
 
         {/* ══ REVIEW ══ */}
-        {!loading && step === STEPS.REVIEW && (
+        {step === STEPS.REVIEW && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 6 }}>Today's Action Items</div>
@@ -729,7 +718,7 @@ Rules:
         )}
 
         {/* ══ SYNCING ══ */}
-        {!loading && step === STEPS.SYNCING && (
+        {step === STEPS.SYNCING && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 48 }}>📊</div>
             <div style={{ fontSize: 20, fontWeight: "bold" }}>Saving to Google Sheets…</div>
@@ -738,7 +727,7 @@ Rules:
         )}
 
         {/* ══ DONE ══ */}
-        {!loading && step === STEPS.DONE && (
+        {step === STEPS.DONE && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 56 }}>✦</div>
             <div style={{ fontSize: 24, fontWeight: "bold" }}>Check-in complete</div>
