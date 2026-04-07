@@ -120,6 +120,9 @@ export default function EncoreCheckin() {
   const [slackSent, setSlackSent]       = useState(false);
   const [slackSending, setSlackSending] = useState(false);
   const [slackError, setSlackError]     = useState("");
+  const [loading, setLoading]           = useState(false);
+  const [savedDate, setSavedDate]       = useState("");
+  const [saveStatus, setSaveStatus]     = useState("");
 
   const member = TEAM_MEMBERS[currentIdx];
 
@@ -128,8 +131,6 @@ export default function EncoreCheckin() {
   useEffect(() => { localStorage.setItem(LS_WEEK, weekNotes); }, [weekNotes]);
   useEffect(() => { localStorage.setItem(LS_DASH, JSON.stringify(dashNotes)); }, [dashNotes]);
 
-  // Disable loading — show app immediately
-  useEffect(() => { setLoading(false); }, []);
 
   function handleSetup() {
     if (!sheetUrl.includes("docs.google.com/spreadsheets")) {
