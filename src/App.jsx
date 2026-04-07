@@ -3,6 +3,7 @@ import { useState, useCallback, useEffect } from "react";
 const LS_SHEET = "encore_sheet_url";
 const LS_SLACK = "encore_slack_webhook";
 const LS_WEEK  = "encore_week_notes";
+const LS_DASH  = "encore_dashboard_notes";
 
 const TEAM_MEMBERS = [
   { name: "Alisa",    role: "Thoughtfulness Coordinator",          slackId: "U09FM3V6ZL3" },
@@ -17,6 +18,54 @@ const TEAM_MEMBERS = [
   { name: "Randy",    role: "Director of Education",               slackId: "U08H29010UD" },
   { name: "Rebekah",  role: "Volunteer & Scholarship Coordinator", slackId: "U07FBJLFTU7" },
   { name: "Shannon",  role: "Company Manager",                     slackId: "U08ASFC8LF6" },
+];
+
+const DASHBOARD_CATEGORIES = [
+  {
+    id: "projects",
+    label: "Projects",
+    emoji: "🗂️",
+    color: "#2D5A8E",
+    lightColor: "#1A3A5C",
+    borderColor: "#4A7AB5",
+    items: ["Junior Camps", "Sensory Friendly", "Fall Programming"],
+  },
+  {
+    id: "finance",
+    label: "Finance",
+    emoji: "💰",
+    color: "#2D6B4A",
+    lightColor: "#1A4A30",
+    borderColor: "#4A9B6A",
+    items: ["Budgets", "Contracts"],
+  },
+  {
+    id: "showprep",
+    label: "Show Prep",
+    emoji: "🎭",
+    color: "#6B2D6B",
+    lightColor: "#4A1A4A",
+    borderColor: "#9B4A9B",
+    items: ["Team Support", "Opening Night", "Closing Night", "Sensory Friendly"],
+  },
+  {
+    id: "executive",
+    label: "Executive",
+    emoji: "🏛️",
+    color: "#8E5A2D",
+    lightColor: "#5C3A1A",
+    borderColor: "#B57A4A",
+    items: ["Team Meetings & Communication", "Board Meetings", "Board Communication", "City Relationships", "Fundraising", "Grants", "Systems & Processes", "Growing the Team"],
+  },
+  {
+    id: "aspire",
+    label: "Aspire",
+    emoji: "⭐",
+    color: "#8E2D3A",
+    lightColor: "#5C1A22",
+    borderColor: "#B54A5A",
+    items: ["Team", "Families", "Show Planning", "Promotion", "Expansion", "Improvements"],
+  },
 ];
 
 const UPCOMING_EVENTS = `- Bright Lights of Broadway (Aspire Performing Co.) — April 16-18, 2026 at the Electric Theater
@@ -36,7 +85,7 @@ const todayStr = () =>
   new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric", year:"numeric" });
 const isoDate = () => new Date().toISOString().split("T")[0];
 
-const STEPS = { SETUP:"setup", CHECKIN:"checkin", MARKETING:"marketing", WEEK:"week", PROCESSING:"processing", REVIEW:"review", SYNCING:"syncing", DONE:"done" };
+const STEPS = { SETUP:"setup", CHECKIN:"checkin", MARKETING:"marketing", WEEK:"week", DASHBOARD:"dashboard", PROCESSING:"processing", REVIEW:"review", SYNCING:"syncing", DONE:"done" };
 
 const EncoreLogo = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 913.73 186.58" style={{ height: 28, width: "auto" }}>
@@ -61,6 +110,11 @@ export default function EncoreCheckin() {
   const [notes, setNotes]               = useState({});
   const [marketingNotes, setMarketingNotes] = useState("");
   const [weekNotes, setWeekNotes]       = useState(() => localStorage.getItem(LS_WEEK) || "");
+  const [dashNotes, setDashNotes]       = useState(() => {
+    try { return JSON.parse(localStorage.getItem(LS_DASH) || "{}"); } catch { return {}; }
+  });
+  const [expandedCats, setExpandedCats] = useState({});
+  const [expandedItems, setExpandedItems] = useState({});
   const [actionItems, setActionItems]   = useState([]);
   const [syncError, setSyncError]       = useState("");
   const [slackSent, setSlackSent]       = useState(false);
@@ -72,6 +126,7 @@ export default function EncoreCheckin() {
   useEffect(() => { localStorage.setItem(LS_SHEET, sheetUrl); }, [sheetUrl]);
   useEffect(() => { localStorage.setItem(LS_SLACK, slackWebhook); }, [slackWebhook]);
   useEffect(() => { localStorage.setItem(LS_WEEK, weekNotes); }, [weekNotes]);
+  useEffect(() => { localStorage.setItem(LS_DASH, JSON.stringify(dashNotes)); }, [dashNotes]);
 
   function handleSetup() {
     if (!sheetUrl.includes("docs.google.com/spreadsheets")) {
@@ -94,41 +149,67 @@ export default function EncoreCheckin() {
     if (currentIdx > 0) setCurrentIdx(i => i - 1);
   }
 
+  function setDashNote(catId, item, value) {
+    const key = `${catId}::${item}`;
+    setDashNotes(prev => ({ ...prev, [key]: value }));
+  }
+
+  function getDashNote(catId, item) {
+    return dashNotes[`${catId}::${item}`] || "";
+  }
+
+  function toggleCat(catId) {
+    setExpandedCats(prev => ({ ...prev, [catId]: !prev[catId] }));
+  }
+
+  function toggleItem(key) {
+    setExpandedItems(prev => ({ ...prev, [key]: !prev[key] }));
+  }
+
+  function dashNotesCount() {
+    return Object.values(dashNotes).filter(v => v && v.trim()).length;
+  }
+
   const extractActionItems = useCallback(async () => {
     const teamNotes = TEAM_MEMBERS
       .filter(m => notes[m.name] && notes[m.name].trim())
       .map(m => `${m.name} (${m.role}): ${notes[m.name]}`)
       .join("\n");
 
+    const dashSummary = DASHBOARD_CATEGORIES.flatMap(cat =>
+      cat.items
+        .filter(item => getDashNote(cat.id, item).trim())
+        .map(item => `${cat.label} - ${item}: ${getDashNote(cat.id, item)}`)
+    ).join("\n");
+
     const allNotes = [
       teamNotes,
-      marketingNotes && marketingNotes.trim() ? `MARKETING CHECK-IN: ${marketingNotes}` : "",
-      weekNotes && weekNotes.trim() ? `WEEK AHEAD NOTES: ${weekNotes}` : "",
+      marketingNotes && marketingNotes.trim() ? `MARKETING: ${marketingNotes}` : "",
+      weekNotes && weekNotes.trim() ? `WEEK AHEAD: ${weekNotes}` : "",
+      dashSummary ? `ORGANIZATIONAL DASHBOARD:\n${dashSummary}` : "",
     ].filter(Boolean).join("\n\n");
 
     if (!allNotes) { setActionItems([]); setStep(STEPS.REVIEW); return; }
 
     const prompt = `You are the executive assistant to the Executive Director of Encore Theatre, a performing arts organization in St. George, Utah.
 
-Read the following daily check-in notes and extract clear, detailed, well-written action items. These notes are written conversationally. Your job is to interpret them and write each action item as a complete, professional task that includes enough context so anyone reading it understands exactly what needs to happen and why.
+Read the following daily check-in notes and extract clear, detailed, well-written action items. Write each as a complete professional sentence with enough context that anyone reading it understands what needs to happen and why.
 
-UPCOMING EVENTS FOR CONTEXT:
+UPCOMING EVENTS:
 ${UPCOMING_EVENTS}
 
 CHECK-IN NOTES:
 ${allNotes}
 
-Return ONLY a JSON array with no markdown or explanation:
-[{"person":"Name or dash if not person-specific","role":"Their Role or empty","task":"Full detailed action item written as a complete sentence or two with context","priority":"high|medium|low","category":"team|marketing|week"}]
+Return ONLY a JSON array with no markdown:
+[{"person":"Name or dash","role":"Role or empty","task":"Full detailed action item with context","priority":"high|medium|low","category":"team|marketing|week|projects|finance|showprep|executive|aspire"}]
 
 Rules:
-- Write each task as a well-crafted complete sentence. Include context from the notes (not just what to do, but why and any relevant details).
-- Only extract real action items. Skip purely informational notes.
-- high = urgent or this week, medium = important soon, low = when possible
-- category team = about a team member, marketing = social/email/ticketing/promotion, week = general planning item
-- For marketing items reference specific upcoming shows where relevant
-- For team items, set person to the team member's name
-- For marketing or week items, set person to a dash character`;
+- Write complete, well-worded tasks with context from the notes
+- Only extract real action items, skip purely informational notes
+- high = urgent/this week, medium = important soon, low = when possible
+- Match category to the section the note came from
+- For team items set person to the team member name; for others use a dash`;
 
     try {
       const res = await fetch("/.netlify/functions/claude", {
@@ -138,12 +219,11 @@ Rules:
       });
       const data = await res.json();
       const raw = data.content && data.content.find(b => b.type === "text") ? data.content.find(b => b.type === "text").text : "[]";
-      const clean = raw.replace(/```json|```/g, "").trim();
-      const parsed = JSON.parse(clean);
+      const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
       setActionItems(Array.isArray(parsed) ? parsed : []);
     } catch(e) { setActionItems([]); }
     setStep(STEPS.REVIEW);
-  }, [notes, marketingNotes, weekNotes]);
+  }, [notes, marketingNotes, weekNotes, dashNotes]);
 
   async function syncToSheets() {
     setStep(STEPS.SYNCING);
@@ -152,13 +232,19 @@ Rules:
     if (!match) { setSyncError("Couldn't parse spreadsheet ID."); setStep(STEPS.REVIEW); return; }
     const spreadsheetId = match[1];
     const rows = TEAM_MEMBERS.map(m => {
-      const items = actionItems.filter(a => a.person === m.name).map(a => `[${(a.priority || "").toUpperCase()}] ${a.task}`).join(" | ");
-      return [isoDate(), "Encore Team", m.name, m.role, notes[m.name] || "", items];
+      const items = actionItems.filter(a => a.person === m.name).map(a => `[${(a.priority||"").toUpperCase()}] ${a.task}`).join(" | ");
+      return [isoDate(), "Team", m.name, m.role, notes[m.name] || "", items];
     });
     if (marketingNotes) rows.push([isoDate(), "Marketing", "-", "-", marketingNotes, actionItems.filter(a => a.category === "marketing").map(a => a.task).join(" | ")]);
     if (weekNotes) rows.push([isoDate(), "Week Ahead", "-", "-", weekNotes, actionItems.filter(a => a.category === "week").map(a => a.task).join(" | ")]);
+    DASHBOARD_CATEGORIES.forEach(cat => {
+      cat.items.forEach(item => {
+        const note = getDashNote(cat.id, item);
+        if (note.trim()) rows.push([isoDate(), cat.label, item, "-", note, actionItems.filter(a => a.category === cat.id && a.task.includes(item)).map(a => a.task).join(" | ")]);
+      });
+    });
 
-    const prompt = `Append data to Google Sheets spreadsheet ID "${spreadsheetId}". Check if header row exists in Sheet1; if not add: Date | Category | Person | Role | Notes | Action Items. Then append these rows: ${JSON.stringify(rows)}. Use sheets.spreadsheets.values.append to range "Sheet1!A:F".`;
+    const prompt = `Append data to Google Sheets ID "${spreadsheetId}". Check for header row in Sheet1; if missing add: Date | Category | Person | Role | Notes | Action Items. Append: ${JSON.stringify(rows)} to range "Sheet1!A:F".`;
     try {
       await fetch("/.netlify/functions/claude", {
         method: "POST",
@@ -177,9 +263,18 @@ Rules:
     const slackIdMap = {};
     TEAM_MEMBERS.forEach(m => { if (m.slackId) slackIdMap[m.name] = m.slackId; });
     const mentionOrName = (name) => slackIdMap[name] ? `<@${slackIdMap[name]}>` : name;
-
     const priorityEmoji = { high: "🔴", medium: "🟡", low: "🟢" };
-    const categoryLabel = { team: "👥 Team", marketing: "📣 Marketing", week: "📅 Week Ahead" };
+
+    const categoryGroups = [
+      { key: "team", label: "👥 Team" },
+      { key: "marketing", label: "📣 Marketing" },
+      { key: "week", label: "📅 Week Ahead" },
+      { key: "projects", label: "🗂️ Projects" },
+      { key: "finance", label: "💰 Finance" },
+      { key: "showprep", label: "🎭 Show Prep" },
+      { key: "executive", label: "🏛️ Executive" },
+      { key: "aspire", label: "⭐ Aspire" },
+    ];
 
     let blocks = [
       { type: "header", text: { type: "plain_text", text: `Encore Daily Check-In — ${todayStr()}` } },
@@ -187,11 +282,11 @@ Rules:
       { type: "divider" },
     ];
 
-    ["team", "marketing", "week"].forEach(cat => {
-      const catItems = actionItems.filter(a => a.category === cat);
+    categoryGroups.forEach(({ key, label }) => {
+      const catItems = actionItems.filter(a => a.category === key);
       if (!catItems.length) return;
-      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${categoryLabel[cat] || cat}*` } });
-      ["high", "medium", "low"].forEach(p => {
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${label}*` } });
+      ["high","medium","low"].forEach(p => {
         const items = catItems.filter(a => a.priority === p);
         if (!items.length) return;
         blocks.push({ type: "section", text: { type: "mrkdwn", text: `${priorityEmoji[p]} *${p.charAt(0).toUpperCase() + p.slice(1)} Priority*` } });
@@ -207,7 +302,6 @@ Rules:
     if (weekNotes && weekNotes.trim()) {
       blocks.push({ type: "section", text: { type: "mrkdwn", text: `*📝 On my mind this week*\n${weekNotes}` } });
     }
-
     if (actionItems.length === 0) {
       blocks.push({ type: "section", text: { type: "mrkdwn", text: "_No action items today._" } });
     }
@@ -231,16 +325,22 @@ Rules:
     low:    { bg: "#101A10", border: "#2A5A2A", dot: "#50A050" },
   }[p] || { bg: "#1A1A1A", border: "#333", dot: "#666" });
 
-  const sectionLabel = { team: "👥 Team", marketing: "📣 Marketing", week: "📅 Week Ahead" };
+  const ALL_CATEGORY_LABELS = {
+    team: "👥 Team", marketing: "📣 Marketing", week: "📅 Week Ahead",
+    projects: "🗂️ Projects", finance: "💰 Finance", showprep: "🎭 Show Prep",
+    executive: "🏛️ Executive", aspire: "⭐ Aspire",
+  };
 
   const inputStyle = { width: "100%", padding: "11px 14px", background: "#0C0C10", border: "1px solid #2A2A38", borderRadius: 8, color: "#EDE8E0", fontSize: 13, fontFamily: "monospace", outline: "none", boxSizing: "border-box" };
-  const textareaStyle = { width: "100%", minHeight: 150, background: "#111118", border: "1px solid #2A2A38", borderRadius: 10, padding: "14px 16px", color: "#EDE8E0", fontSize: 14, lineHeight: 1.75, fontFamily: "Palatino,Georgia,serif", resize: "vertical", outline: "none", boxSizing: "border-box" };
+  const textareaStyle = { width: "100%", minHeight: 140, background: "#111118", border: "1px solid #2A2A38", borderRadius: 10, padding: "14px 16px", color: "#EDE8E0", fontSize: 14, lineHeight: 1.75, fontFamily: "Palatino,Georgia,serif", resize: "vertical", outline: "none", boxSizing: "border-box" };
   const primaryBtn = { padding: "13px 20px", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer", background: "linear-gradient(135deg,#348193,#4A9DAD)", border: "none", color: "#0C0C10" };
   const ghostBtn   = { padding: "13px 20px", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer", background: "transparent", border: "1px solid #2A2A38", color: "#888" };
   const slackBtn   = { padding: "13px 20px", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer", background: "#1A1F2E", border: "1px solid #3A4A6A", color: "#8AAEE8" };
 
   return (
     <div style={{ minHeight: "100vh", background: "#0C0C10", color: "#EDE8E0", fontFamily: "'Palatino Linotype','Book Antiqua',Palatino,Georgia,serif", display: "flex", flexDirection: "column" }}>
+
+      {/* HEADER */}
       <div style={{ padding: "16px 28px", borderBottom: "1px solid #1E1E28", display: "flex", justifyContent: "space-between", alignItems: "center", background: "linear-gradient(180deg,#111118 0%,#0C0C10 100%)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <EncoreLogo />
@@ -251,12 +351,14 @@ Rules:
           {step === STEPS.CHECKIN && <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>{currentIdx + 1}/{TEAM_MEMBERS.length} team</div>}
           {step === STEPS.MARKETING && <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>📣 Marketing</div>}
           {step === STEPS.WEEK && <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>📅 Week Ahead</div>}
+          {step === STEPS.DASHBOARD && <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>🗂️ Dashboard · {dashNotesCount()} notes</div>}
           {step === STEPS.REVIEW && <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>{actionItems.length} action items</div>}
         </div>
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "28px", maxWidth: 680, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
 
+        {/* ══ SETUP ══ */}
         {step === STEPS.SETUP && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
@@ -272,6 +374,16 @@ Rules:
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Slack <span style={{ color: "#444", fontWeight: "normal", letterSpacing: 0 }}>— optional</span></div>
               <input value={slackWebhook} onChange={e => setSlackWebhook(e.target.value)} placeholder="https://hooks.slack.com/services/..." style={inputStyle} />
             </div>
+
+            {/* Quick access to dashboard */}
+            <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "16px 20px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: "bold", marginBottom: 2 }}>Encore Dashboard</div>
+                <div style={{ fontSize: 12, color: "#666" }}>Projects · Finance · Show Prep · Executive · Aspire</div>
+              </div>
+              <button onClick={() => setStep(STEPS.DASHBOARD)} style={{ ...ghostBtn, padding: "8px 16px", fontSize: 13 }}>Open →</button>
+            </div>
+
             <button onClick={handleSetup} style={{ ...primaryBtn, padding: "14px 24px", fontSize: 15 }}>Begin Today's Check-In →</button>
             <div style={{ textAlign: "center" }}>
               <button onClick={() => setStep(STEPS.CHECKIN)} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>Skip — check in without saving</button>
@@ -279,6 +391,7 @@ Rules:
           </div>
         )}
 
+        {/* ══ TEAM CHECK-IN ══ */}
         {step === STEPS.CHECKIN && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
@@ -302,7 +415,7 @@ Rules:
               <div style={{ fontSize: 13, color: "#666", marginBottom: 10, letterSpacing: 1, textTransform: "uppercase" }}>Check-in notes</div>
               <textarea autoFocus value={notes[member.name] || ""} onChange={e => setNotes(prev => ({ ...prev, [member.name]: e.target.value }))}
                 placeholder={`What's on your mind for ${member.name}? Updates, follow-ups, concerns, wins…`}
-                style={{ ...textareaStyle, minHeight: 140 }} />
+                style={textareaStyle} />
             </div>
             <div style={{ display: "flex", gap: 12 }}>
               {currentIdx > 0 && <button onClick={goBack} style={ghostBtn}>← Back</button>}
@@ -320,6 +433,7 @@ Rules:
           </div>
         )}
 
+        {/* ══ MARKETING ══ */}
         {step === STEPS.MARKETING && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
@@ -329,7 +443,7 @@ Rules:
             </div>
             <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "16px 18px" }}>
               <div style={{ fontSize: 11, color: "#444", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Upcoming to consider</div>
-              {["🎭 Bright Lights of Broadway — April 16-18", "📚 Matilda Auditions — April 22 & 23", "✈️ Come From Away Page to Stage — April 22 & 25 (17 seats left!)", "🦁 Lion King Auditions — May 14"].map((e, i) => (
+              {["🎭 Bright Lights of Broadway — April 16-18","📚 Matilda Auditions — April 22 & 23","✈️ Come From Away Page to Stage — April 22 & 25 (17 seats left!)","🦁 Lion King Auditions — May 14"].map((e,i) => (
                 <div key={i} style={{ fontSize: 13, color: "#888", marginBottom: 6 }}>{e}</div>
               ))}
             </div>
@@ -343,23 +457,120 @@ Rules:
           </div>
         )}
 
+        {/* ══ WEEK AHEAD ══ */}
         {step === STEPS.WEEK && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>📅 Week Ahead</div>
               <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 8 }}>What's on your mind this week?</div>
-              <div style={{ fontSize: 14, color: "#888", lineHeight: 1.7 }}>Scheduled and unscheduled — things to prepare for, decisions to make, people to think about, intentions for the week.</div>
+              <div style={{ fontSize: 14, color: "#888", lineHeight: 1.7 }}>Scheduled and unscheduled — things to prepare for, decisions to make, people to think about.</div>
             </div>
             <textarea value={weekNotes} onChange={e => setWeekNotes(e.target.value)}
-              placeholder="What's coming up this week? What do you want to prepare for, follow up on, or keep top of mind? Include calendar items and anything swirling in your head…"
+              placeholder="What's coming up this week? What do you want to prepare for, follow up on, or keep top of mind?"
               style={{ ...textareaStyle, minHeight: 180 }} />
             <div style={{ display: "flex", gap: 12 }}>
               <button onClick={() => setStep(STEPS.MARKETING)} style={ghostBtn}>← Back</button>
-              <button onClick={() => { setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>Finish & Extract Action Items →</button>
+              <button onClick={() => setStep(STEPS.DASHBOARD)} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>Continue to Dashboard →</button>
             </div>
           </div>
         )}
 
+        {/* ══ DASHBOARD ══ */}
+        {step === STEPS.DASHBOARD && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>🗂️ Encore Dashboard</div>
+              <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 8 }}>What's on your mind today?</div>
+              <div style={{ fontSize: 14, color: "#888", lineHeight: 1.7 }}>Tap any category to expand it. Add notes to the areas that need attention — leave the rest blank.</div>
+            </div>
+
+            {DASHBOARD_CATEGORIES.map(cat => {
+              const isExpanded = expandedCats[cat.id];
+              const filledCount = cat.items.filter(item => getDashNote(cat.id, item).trim()).length;
+              return (
+                <div key={cat.id} style={{ borderRadius: 12, overflow: "hidden", border: `1px solid ${cat.borderColor}40` }}>
+                  {/* Category Header */}
+                  <button onClick={() => toggleCat(cat.id)} style={{
+                    width: "100%", padding: "16px 20px",
+                    background: `linear-gradient(135deg, ${cat.color}88, ${cat.lightColor}CC)`,
+                    border: "none", cursor: "pointer",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    textAlign: "left",
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 20 }}>{cat.emoji}</span>
+                      <span style={{ fontSize: 16, fontWeight: "bold", color: "#F0EDE8", fontFamily: "Palatino,Georgia,serif" }}>{cat.label}</span>
+                      {filledCount > 0 && (
+                        <span style={{ background: cat.borderColor, color: "#0C0C10", fontSize: 11, fontWeight: "bold", padding: "2px 8px", borderRadius: 20, fontFamily: "sans-serif" }}>
+                          {filledCount} note{filledCount > 1 ? "s" : ""}
+                        </span>
+                      )}
+                    </div>
+                    <span style={{ color: "#EDE8E0", fontSize: 18, opacity: 0.7 }}>{isExpanded ? "▲" : "▼"}</span>
+                  </button>
+
+                  {/* Category Items */}
+                  {isExpanded && (
+                    <div style={{ background: "#0E0E16", padding: "12px 16px", display: "flex", flexDirection: "column", gap: 8 }}>
+                      {cat.items.map(item => {
+                        const key = `${cat.id}::${item}`;
+                        const isOpen = expandedItems[key];
+                        const note = getDashNote(cat.id, item);
+                        const hasNote = note.trim().length > 0;
+                        return (
+                          <div key={item} style={{ borderRadius: 8, overflow: "hidden", border: `1px solid ${hasNote ? cat.borderColor + "60" : "#2A2A38"}` }}>
+                            <button onClick={() => toggleItem(key)} style={{
+                              width: "100%", padding: "11px 16px",
+                              background: hasNote ? `${cat.color}22` : "#111118",
+                              border: "none", cursor: "pointer",
+                              display: "flex", alignItems: "center", justifyContent: "space-between",
+                              textAlign: "left",
+                            }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <div style={{ width: 6, height: 6, borderRadius: "50%", background: hasNote ? cat.borderColor : "#333", flexShrink: 0 }} />
+                                <span style={{ fontSize: 14, color: hasNote ? "#EDE8E0" : "#888", fontFamily: "Palatino,Georgia,serif" }}>{item}</span>
+                              </div>
+                              <span style={{ color: "#555", fontSize: 14 }}>{isOpen ? "▲" : "+"}</span>
+                            </button>
+                            {isOpen && (
+                              <div style={{ padding: "0 16px 12px", background: hasNote ? `${cat.color}11` : "#0C0C10" }}>
+                                <textarea
+                                  autoFocus
+                                  value={note}
+                                  onChange={e => setDashNote(cat.id, item, e.target.value)}
+                                  placeholder={`What's on your mind about ${item}?`}
+                                  style={{ width: "100%", minHeight: 90, background: "transparent", border: "none", borderTop: `1px solid ${cat.borderColor}30`, padding: "12px 0 0", color: "#EDE8E0", fontSize: 14, lineHeight: 1.7, fontFamily: "Palatino,Georgia,serif", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
+              {step === STEPS.DASHBOARD && (
+                <button onClick={() => setStep(STEPS.WEEK)} style={ghostBtn}>← Back</button>
+              )}
+              <button onClick={() => { setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>
+                Finish & Extract Action Items →
+              </button>
+            </div>
+
+            {/* Also let them access dashboard standalone without extracting */}
+            <div style={{ textAlign: "center" }}>
+              <button onClick={() => setStep(STEPS.SETUP)} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
+                Save notes & return to home
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ══ PROCESSING ══ */}
         {step === STEPS.PROCESSING && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 48 }}>✦</div>
@@ -372,6 +583,7 @@ Rules:
           </div>
         )}
 
+        {/* ══ REVIEW ══ */}
         {step === STEPS.REVIEW && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
@@ -382,12 +594,12 @@ Rules:
               <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "24px", textAlign: "center", color: "#666" }}>No action items found today.</div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {["team","marketing","week"].map(cat => {
+                {Object.entries(ALL_CATEGORY_LABELS).map(([cat, label]) => {
                   const catItems = actionItems.filter(a => a.category === cat);
                   if (!catItems.length) return null;
                   return (
                     <div key={cat}>
-                      <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>{sectionLabel[cat]}</div>
+                      <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>{label}</div>
                       {["high","medium","low"].map(priority => {
                         const items = catItems.filter(a => a.priority === priority);
                         if (!items.length) return null;
@@ -436,6 +648,7 @@ Rules:
           </div>
         )}
 
+        {/* ══ SYNCING ══ */}
         {step === STEPS.SYNCING && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 48 }}>📊</div>
@@ -444,6 +657,7 @@ Rules:
           </div>
         )}
 
+        {/* ══ DONE ══ */}
         {step === STEPS.DONE && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 56 }}>✦</div>
