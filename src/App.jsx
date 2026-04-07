@@ -16,7 +16,7 @@ const TEAM_MEMBERS = [
 ];
 
 const AVATAR_COLORS = [
-  "#C9956A","#7FB5D5","#9B8EC4","#D47F9E","#5BBF9F",
+  "#348193","#7FB5D5","#9B8EC4","#D47F9E","#5BBF9F",
   "#D4A84B","#C47055","#6AAEE8","#8EC4A8","#C49898","#8BBFB0","#B8A86A",
 ];
 
@@ -194,12 +194,12 @@ Rules:
       <div style={{ padding: "16px 28px", borderBottom: "1px solid #1E1E28", display: "flex", justifyContent: "space-between", alignItems: "center", background: "linear-gradient(180deg, #111118 0%, #0C0C10 100%)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <EncoreLogo />
-          <div style={{ fontSize: 11, letterSpacing: 4, color: "#A07848", textTransform: "uppercase" }}>Daily Check-In</div>
+          <div style={{ fontSize: 11, letterSpacing: 4, color: "#348193", textTransform: "uppercase" }}>Daily Check-In</div>
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 12, color: "#666" }}>{todayStr()}</div>
           {step !== STEPS.SETUP && (
-            <div style={{ fontSize: 10, color: "#A07848", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>
+            <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>
               {step === STEPS.CHECKIN ? `${currentIdx + 1}/${TEAM_MEMBERS.length} reviewed` :
                step === STEPS.PROCESSING ? "Extracting actions…" :
                step === STEPS.REVIEW ? `${actionItems.length} action items` :
@@ -221,7 +221,7 @@ Rules:
 
             {/* Google Sheets */}
             <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "20px 22px" }}>
-              <div style={{ fontSize: 11, color: "#A07848", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Google Sheets</div>
+              <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Google Sheets</div>
               <div style={{ fontSize: 13, color: "#888", marginBottom: 8 }}>Paste your spreadsheet URL</div>
               <input value={sheetUrl} onChange={e => { setSheetUrl(e.target.value); setSheetError(""); }}
                 placeholder="https://docs.google.com/spreadsheets/d/..."
@@ -231,7 +231,7 @@ Rules:
 
             {/* Slack */}
             <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "20px 22px" }}>
-              <div style={{ fontSize: 11, color: "#A07848", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Slack <span style={{ color: "#444", fontWeight: "normal", letterSpacing: 0 }}>— optional</span></div>
+              <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Slack <span style={{ color: "#444", fontWeight: "normal", letterSpacing: 0 }}>— optional</span></div>
               <div style={{ fontSize: 13, color: "#888", marginBottom: 8 }}>Paste your Slack Incoming Webhook URL</div>
               <input value={slackWebhook} onChange={e => setSlackWebhook(e.target.value)}
                 placeholder="https://hooks.slack.com/services/..."
@@ -241,7 +241,7 @@ Rules:
               </div>
             </div>
 
-            <button onClick={handleSetup} style={{ padding: "14px 24px", background: "linear-gradient(135deg, #A07848, #C49A60)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 15, fontWeight: "bold", cursor: "pointer" }}>
+            <button onClick={handleSetup} style={{ padding: "14px 24px", background: "linear-gradient(135deg, #348193, #4A9DAD)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 15, fontWeight: "bold", cursor: "pointer" }}>
               Begin Today's Check-In →
             </button>
             <div style={{ textAlign: "center" }}>
@@ -258,10 +258,10 @@ Rules:
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
                 <div style={{ fontSize: 11, color: "#666", letterSpacing: 2, textTransform: "uppercase" }}>Progress</div>
-                <div style={{ fontSize: 11, color: "#A07848" }}>{currentIdx + 1} of {TEAM_MEMBERS.length}</div>
+                <div style={{ fontSize: 11, color: "#348193" }}>{currentIdx + 1} of {TEAM_MEMBERS.length}</div>
               </div>
               <div style={{ height: 3, background: "#1E1E28", borderRadius: 2 }}>
-                <div style={{ height: "100%", borderRadius: 2, width: `${(currentIdx / TEAM_MEMBERS.length) * 100}%`, background: "linear-gradient(90deg, #A07848, #D4AA70)", transition: "width 0.3s ease" }} />
+                <div style={{ height: "100%", borderRadius: 2, width: `${(currentIdx / TEAM_MEMBERS.length) * 100}%`, background: "linear-gradient(90deg, #348193, #5BB0BF)", transition: "width 0.3s ease" }} />
               </div>
             </div>
 
@@ -272,7 +272,7 @@ Rules:
                 </div>
                 <div>
                   <div style={{ fontSize: 22, fontWeight: "bold" }}>{member.name}</div>
-                  <div style={{ fontSize: 13, color: "#A07848" }}>{member.role}</div>
+                  <div style={{ fontSize: 13, color: "#348193" }}>{member.role}</div>
                 </div>
               </div>
               <div style={{ fontSize: 13, color: "#666", marginBottom: 10, letterSpacing: 1, textTransform: "uppercase" }}>Check-in notes</div>
@@ -285,7 +285,7 @@ Rules:
               {currentIdx > 0 && (
                 <button onClick={goBack} style={{ padding: "12px 20px", background: "transparent", border: "1px solid #2A2A38", borderRadius: 10, color: "#888", fontSize: 14, cursor: "pointer" }}>← Back</button>
               )}
-              <button onClick={saveAndAdvance} style={{ flex: 1, padding: "13px 20px", background: "linear-gradient(135deg, #A07848, #C49A60)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 15, fontWeight: "bold", cursor: "pointer" }}>
+              <button onClick={saveAndAdvance} style={{ flex: 1, padding: "13px 20px", background: "linear-gradient(135deg, #348193, #4A9DAD)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 15, fontWeight: "bold", cursor: "pointer" }}>
                 {currentIdx < TEAM_MEMBERS.length - 1 ? `Next: ${TEAM_MEMBERS[currentIdx + 1].name} →` : "Finish & Extract Action Items →"}
               </button>
             </div>
@@ -307,7 +307,7 @@ Rules:
             <div style={{ fontSize: 20, fontWeight: "bold" }}>Reading your notes…</div>
             <div style={{ fontSize: 14, color: "#888", maxWidth: 380, lineHeight: 1.7 }}>Claude is reviewing your notes and extracting action items by priority.</div>
             <div style={{ display: "flex", gap: 6 }}>
-              {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#A07848", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
+              {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#348193", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
             </div>
             <style>{`@keyframes pulse { 0%,100%{opacity:0.2} 50%{opacity:1} }`}</style>
           </div>
@@ -357,7 +357,7 @@ Rules:
 
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
               {sheetUrl && (
-                <button onClick={syncToSheets} style={{ flex: 1, minWidth: 180, padding: "13px 20px", background: "linear-gradient(135deg, #A07848, #C49A60)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 14, fontWeight: "bold", cursor: "pointer" }}>
+                <button onClick={syncToSheets} style={{ flex: 1, minWidth: 180, padding: "13px 20px", background: "linear-gradient(135deg, #348193, #4A9DAD)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 14, fontWeight: "bold", cursor: "pointer" }}>
                   Save to Google Sheets →
                 </button>
               )}
@@ -401,7 +401,7 @@ Rules:
 
             {actionItems.length > 0 && (
               <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "16px 20px", width: "100%", textAlign: "left" }}>
-                <div style={{ fontSize: 11, color: "#A07848", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Summary</div>
+                <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Summary</div>
                 {["high","medium","low"].map(p => {
                   const count = actionItems.filter(a => a.priority === p).length;
                   if (!count) return null;
@@ -420,7 +420,7 @@ Rules:
             )}
 
             <button onClick={() => { setStep(STEPS.SETUP); setCurrentIdx(0); setNotes({}); setActionItems([]); setSyncError(""); setSlackSent(false); setSlackError(""); }}
-              style={{ padding: "13px 28px", background: "linear-gradient(135deg, #A07848, #C49A60)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 15, fontWeight: "bold", cursor: "pointer" }}>
+              style={{ padding: "13px 28px", background: "linear-gradient(135deg, #348193, #4A9DAD)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 15, fontWeight: "bold", cursor: "pointer" }}>
               Start a New Check-In
             </button>
           </div>
