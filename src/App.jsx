@@ -6,9 +6,9 @@ const LS_WEEK  = "encore_week_notes";
 const LS_DASH  = "encore_dashboard_notes";
 
 const TEAM_MEMBERS = [
-  { name: "Alisa",    role: "Thoughtfulness Coordinator",          slackId: "U09FM3V6ZL3" },
+  { name: "Alyssa",   role: "Thoughtfulness Coordinator",          slackId: "U09FM3V6ZL3" },
   { name: "Amy",      role: "Accounting & Box Office",             slackId: "U07ESPANECB" },
-  { name: "Brittany", role: "Events Coordinator",                  slackId: "U035KT6D12Q" },
+  { name: "Brittney", role: "Events Coordinator",                  slackId: "U035KT6D12Q" },
   { name: "Erin",     role: "Set Designer",                        slackId: "U02QYJ7R8KV" },
   { name: "Ilia",     role: "Stage Manager",                       slackId: null },
   { name: "Joyce",    role: "Marketing & Personal VA",             slackId: "U09EL02EG64" },
