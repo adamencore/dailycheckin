@@ -1,19 +1,28 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
+
+const LS_SHEET = "encore_sheet_url";
+const LS_SLACK = "encore_slack_webhook";
+const LS_WEEK  = "encore_week_notes";
 
 const TEAM_MEMBERS = [
-  { name: "Alisa",    role: "Thoughtfulness Coordinator" },
-  { name: "Amy",      role: "Accounting & Box Office" },
-  { name: "Brittany", role: "Events Coordinator" },
-  { name: "Erin",     role: "Set Designer" },
-  { name: "Ilia",     role: "Stage Manager" },
-  { name: "Joyce",    role: "Marketing & Personal VA" },
-  { name: "Kelby",    role: "Aspire Program Director" },
-  { name: "Kristen",  role: "Production Manager" },
-  { name: "Nicole",   role: "Tech Director" },
-  { name: "Randy",    role: "Director of Education" },
-  { name: "Rebekah",  role: "Volunteer & Scholarship Coordinator" },
-  { name: "Shannon",  role: "Company Manager" },
+  { name: "Alisa",    role: "Thoughtfulness Coordinator",          slackId: "U09FM3V6ZL3" },
+  { name: "Amy",      role: "Accounting & Box Office",             slackId: "U07ESPANECB" },
+  { name: "Brittany", role: "Events Coordinator",                  slackId: "U035KT6D12Q" },
+  { name: "Erin",     role: "Set Designer",                        slackId: "U02QYJ7R8KV" },
+  { name: "Ilia",     role: "Stage Manager",                       slackId: null },
+  { name: "Joyce",    role: "Marketing & Personal VA",             slackId: "U09EL02EG64" },
+  { name: "Kelby",    role: "Aspire Program Director",             slackId: null },
+  { name: "Kristen",  role: "Production Manager",                  slackId: "U07ECCVUMT9" },
+  { name: "Nicole",   role: "Tech Director",                       slackId: "U0A68LY89AQ" },
+  { name: "Randy",    role: "Director of Education",               slackId: "U08H29010UD" },
+  { name: "Rebekah",  role: "Volunteer & Scholarship Coordinator", slackId: "U07FBJLFTU7" },
+  { name: "Shannon",  role: "Company Manager",                     slackId: "U08ASFC8LF6" },
 ];
+
+const UPCOMING_EVENTS = `- Bright Lights of Broadway (Aspire Performing Co.) — April 16-18, 2026 at the Electric Theater
+- Matilda (Aspire Camp): Auditions Wed April 22 6-8pm, Dance Auditions Thu April 23 4pm, Rehearsals April 23-28 6-8pm, Performance Wed April 29 7pm at Electric Theater. Ages 7-11, $175 camp fee.
+- Come From Away (Page to Stage field trip): Workshop Wed April 22 4-6pm at Electric Theater, Performance Sat April 25 2pm matinee at Pioneer Theatre Company SLC + group dinner. Only 17 seats, $115.
+- Lion King Summer Camp: Auditions May 14 at Electric Theater, Ages 7-18.`;
 
 const AVATAR_COLORS = [
   "#348193","#7FB5D5","#9B8EC4","#D47F9E","#5BBF9F",
@@ -27,7 +36,7 @@ const todayStr = () =>
   new Date().toLocaleDateString("en-US", { weekday:"long", month:"long", day:"numeric", year:"numeric" });
 const isoDate = () => new Date().toISOString().split("T")[0];
 
-const STEPS = { SETUP:"setup", CHECKIN:"checkin", PROCESSING:"processing", REVIEW:"review", SYNCING:"syncing", DONE:"done" };
+const STEPS = { SETUP:"setup", CHECKIN:"checkin", MARKETING:"marketing", WEEK:"week", PROCESSING:"processing", REVIEW:"review", SYNCING:"syncing", DONE:"done" };
 
 const EncoreLogo = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 913.73 186.58" style={{ height: 28, width: "auto" }}>
@@ -44,19 +53,25 @@ const EncoreLogo = () => (
 );
 
 export default function EncoreCheckin() {
-  const [step, setStep]               = useState(STEPS.SETUP);
-  const [sheetUrl, setSheetUrl]       = useState("");
-  const [slackWebhook, setSlackWebhook] = useState("");
-  const [sheetError, setSheetError]   = useState("");
-  const [currentIdx, setCurrentIdx]   = useState(0);
-  const [notes, setNotes]             = useState({});
-  const [actionItems, setActionItems] = useState([]);
-  const [syncError, setSyncError]     = useState("");
-  const [slackSent, setSlackSent]     = useState(false);
+  const [step, setStep]                 = useState(STEPS.SETUP);
+  const [sheetUrl, setSheetUrl]         = useState(() => localStorage.getItem(LS_SHEET) || "");
+  const [slackWebhook, setSlackWebhook] = useState(() => localStorage.getItem(LS_SLACK) || "");
+  const [sheetError, setSheetError]     = useState("");
+  const [currentIdx, setCurrentIdx]     = useState(0);
+  const [notes, setNotes]               = useState({});
+  const [marketingNotes, setMarketingNotes] = useState("");
+  const [weekNotes, setWeekNotes]       = useState(() => localStorage.getItem(LS_WEEK) || "");
+  const [actionItems, setActionItems]   = useState([]);
+  const [syncError, setSyncError]       = useState("");
+  const [slackSent, setSlackSent]       = useState(false);
   const [slackSending, setSlackSending] = useState(false);
-  const [slackError, setSlackError]   = useState("");
+  const [slackError, setSlackError]     = useState("");
 
   const member = TEAM_MEMBERS[currentIdx];
+
+  useEffect(() => { localStorage.setItem(LS_SHEET, sheetUrl); }, [sheetUrl]);
+  useEffect(() => { localStorage.setItem(LS_SLACK, slackWebhook); }, [slackWebhook]);
+  useEffect(() => { localStorage.setItem(LS_WEEK, weekNotes); }, [weekNotes]);
 
   function handleSetup() {
     if (!sheetUrl.includes("docs.google.com/spreadsheets")) {
@@ -71,8 +86,7 @@ export default function EncoreCheckin() {
     if (currentIdx < TEAM_MEMBERS.length - 1) {
       setCurrentIdx(i => i + 1);
     } else {
-      setStep(STEPS.PROCESSING);
-      extractActionItems();
+      setStep(STEPS.MARKETING);
     }
   }
 
@@ -81,40 +95,55 @@ export default function EncoreCheckin() {
   }
 
   const extractActionItems = useCallback(async () => {
-    const notesSummary = TEAM_MEMBERS
-      .filter(m => notes[m.name]?.trim())
+    const teamNotes = TEAM_MEMBERS
+      .filter(m => notes[m.name] && notes[m.name].trim())
       .map(m => `${m.name} (${m.role}): ${notes[m.name]}`)
       .join("\n");
 
-    if (!notesSummary) { setActionItems([]); setStep(STEPS.REVIEW); return; }
+    const allNotes = [
+      teamNotes,
+      marketingNotes && marketingNotes.trim() ? `MARKETING CHECK-IN: ${marketingNotes}` : "",
+      weekNotes && weekNotes.trim() ? `WEEK AHEAD NOTES: ${weekNotes}` : "",
+    ].filter(Boolean).join("\n\n");
 
-    const prompt = `You are an executive assistant. Read these check-in notes from a theatre executive director and extract concrete action items.
+    if (!allNotes) { setActionItems([]); setStep(STEPS.REVIEW); return; }
 
-NOTES:
-${notesSummary}
+    const prompt = `You are the executive assistant to the Executive Director of Encore Theatre, a performing arts organization in St. George, Utah.
 
-Return ONLY a JSON array (no markdown, no explanation) like:
-[{"person":"Name","role":"Their Role","task":"Specific action to take","priority":"high|medium|low"}]
+Read the following daily check-in notes and extract clear, detailed, well-written action items. These notes are written conversationally. Your job is to interpret them and write each action item as a complete, professional task that includes enough context so anyone reading it understands exactly what needs to happen and why.
+
+UPCOMING EVENTS FOR CONTEXT:
+${UPCOMING_EVENTS}
+
+CHECK-IN NOTES:
+${allNotes}
+
+Return ONLY a JSON array with no markdown or explanation:
+[{"person":"Name or dash if not person-specific","role":"Their Role or empty","task":"Full detailed action item written as a complete sentence or two with context","priority":"high|medium|low","category":"team|marketing|week"}]
 
 Rules:
-- Only extract real action items (follow-ups, decisions needed, things to schedule, concerns to address)
-- If a note has no action items, skip it
-- Keep tasks concise and actionable (start with a verb)
-- Assign priority: high = urgent/time-sensitive, medium = this week, low = when possible`;
+- Write each task as a well-crafted complete sentence. Include context from the notes (not just what to do, but why and any relevant details).
+- Only extract real action items. Skip purely informational notes.
+- high = urgent or this week, medium = important soon, low = when possible
+- category team = about a team member, marketing = social/email/ticketing/promotion, week = general planning item
+- For marketing items reference specific upcoming shows where relevant
+- For team items, set person to the team member's name
+- For marketing or week items, set person to a dash character`;
 
     try {
       const res = await fetch("/.netlify/functions/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
+        body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 2000, messages: [{ role: "user", content: prompt }] }),
       });
       const data = await res.json();
-      const raw = data.content?.find(b => b.type === "text")?.text || "[]";
-      const parsed = JSON.parse(raw.replace(/```json|```/g, "").trim());
+      const raw = data.content && data.content.find(b => b.type === "text") ? data.content.find(b => b.type === "text").text : "[]";
+      const clean = raw.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
       setActionItems(Array.isArray(parsed) ? parsed : []);
-    } catch { setActionItems([]); }
+    } catch(e) { setActionItems([]); }
     setStep(STEPS.REVIEW);
-  }, [notes]);
+  }, [notes, marketingNotes, weekNotes]);
 
   async function syncToSheets() {
     setStep(STEPS.SYNCING);
@@ -123,17 +152,19 @@ Rules:
     if (!match) { setSyncError("Couldn't parse spreadsheet ID."); setStep(STEPS.REVIEW); return; }
     const spreadsheetId = match[1];
     const rows = TEAM_MEMBERS.map(m => {
-      const items = actionItems.filter(a => a.person === m.name).map(a => `[${a.priority?.toUpperCase()}] ${a.task}`).join(" | ");
+      const items = actionItems.filter(a => a.person === m.name).map(a => `[${(a.priority || "").toUpperCase()}] ${a.task}`).join(" | ");
       return [isoDate(), "Encore Team", m.name, m.role, notes[m.name] || "", items];
     });
-    const prompt = `You have access to Google Sheets. Append data to spreadsheet ID "${spreadsheetId}". First check if a header row exists in Sheet1; if not add: Date | Category | Person | Role | Notes | Action Items. Then append these rows: ${JSON.stringify(rows)}. Use sheets.spreadsheets.values.append to range "Sheet1!A:F".`;
+    if (marketingNotes) rows.push([isoDate(), "Marketing", "-", "-", marketingNotes, actionItems.filter(a => a.category === "marketing").map(a => a.task).join(" | ")]);
+    if (weekNotes) rows.push([isoDate(), "Week Ahead", "-", "-", weekNotes, actionItems.filter(a => a.category === "week").map(a => a.task).join(" | ")]);
+
+    const prompt = `Append data to Google Sheets spreadsheet ID "${spreadsheetId}". Check if header row exists in Sheet1; if not add: Date | Category | Person | Role | Notes | Action Items. Then append these rows: ${JSON.stringify(rows)}. Use sheets.spreadsheets.values.append to range "Sheet1!A:F".`;
     try {
-      const res = await fetch("/.netlify/functions/claude", {
+      await fetch("/.netlify/functions/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }], mcp_servers: [{ type: "url", url: "https://gcal.mcp.claude.com/mcp", name: "google" }] }),
       });
-      await res.json();
       setStep(STEPS.DONE);
     } catch (e) { setSyncError("Sync failed: " + e.message); setStep(STEPS.REVIEW); }
   }
@@ -143,24 +174,39 @@ Rules:
     setSlackSending(true);
     setSlackError("");
 
-    const dateStr = todayStr();
+    const slackIdMap = {};
+    TEAM_MEMBERS.forEach(m => { if (m.slackId) slackIdMap[m.name] = m.slackId; });
+    const mentionOrName = (name) => slackIdMap[name] ? `<@${slackIdMap[name]}>` : name;
+
     const priorityEmoji = { high: "🔴", medium: "🟡", low: "🟢" };
-    const priorityLabel = { high: "*High priority*", medium: "*Medium priority*", low: "*Low priority*" };
+    const categoryLabel = { team: "👥 Team", marketing: "📣 Marketing", week: "📅 Week Ahead" };
 
     let blocks = [
-      { type: "header", text: { type: "plain_text", text: `📋 Encore Daily Check-In — ${dateStr}` } },
-      { type: "section", text: { type: "mrkdwn", text: `${TEAM_MEMBERS.length} team members reviewed · ${actionItems.length} action items extracted` } },
+      { type: "header", text: { type: "plain_text", text: `Encore Daily Check-In — ${todayStr()}` } },
+      { type: "section", text: { type: "mrkdwn", text: `${TEAM_MEMBERS.length} team members reviewed · *${actionItems.length} action items* extracted` } },
       { type: "divider" },
     ];
 
-    ["high","medium","low"].forEach(p => {
-      const items = actionItems.filter(a => a.priority === p);
-      if (!items.length) return;
-      blocks.push({ type: "section", text: { type: "mrkdwn", text: `${priorityEmoji[p]} ${priorityLabel[p]}` } });
-      items.forEach(item => {
-        blocks.push({ type: "section", text: { type: "mrkdwn", text: `• ${item.task}\n_${item.person} · ${item.role}_` } });
+    ["team", "marketing", "week"].forEach(cat => {
+      const catItems = actionItems.filter(a => a.category === cat);
+      if (!catItems.length) return;
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${categoryLabel[cat] || cat}*` } });
+      ["high", "medium", "low"].forEach(p => {
+        const items = catItems.filter(a => a.priority === p);
+        if (!items.length) return;
+        blocks.push({ type: "section", text: { type: "mrkdwn", text: `${priorityEmoji[p]} *${p.charAt(0).toUpperCase() + p.slice(1)} Priority*` } });
+        items.forEach(item => {
+          const hasPerson = item.person && item.person !== "-" && item.person !== "—";
+          const mention = hasPerson ? `\n_${mentionOrName(item.person)} · ${item.role}_` : "";
+          blocks.push({ type: "section", text: { type: "mrkdwn", text: `• ${item.task}${mention}` } });
+        });
       });
+      blocks.push({ type: "divider" });
     });
+
+    if (weekNotes && weekNotes.trim()) {
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*📝 On my mind this week*\n${weekNotes}` } });
+    }
 
     if (actionItems.length === 0) {
       blocks.push({ type: "section", text: { type: "mrkdwn", text: "_No action items today._" } });
@@ -175,9 +221,7 @@ Rules:
       const data = await res.json();
       if (data.ok) { setSlackSent(true); }
       else { setSlackError("Slack rejected the message. Check your webhook URL."); }
-    } catch (e) {
-      setSlackError("Couldn't send to Slack. Check your webhook URL.");
-    }
+    } catch (e) { setSlackError("Couldn't send to Slack."); }
     setSlackSending(false);
   }
 
@@ -187,112 +231,88 @@ Rules:
     low:    { bg: "#101A10", border: "#2A5A2A", dot: "#50A050" },
   }[p] || { bg: "#1A1A1A", border: "#333", dot: "#666" });
 
-  return (
-    <div style={{ minHeight: "100vh", background: "#0C0C10", color: "#EDE8E0", fontFamily: "'Palatino Linotype', 'Book Antiqua', Palatino, Georgia, serif", display: "flex", flexDirection: "column" }}>
+  const sectionLabel = { team: "👥 Team", marketing: "📣 Marketing", week: "📅 Week Ahead" };
 
-      {/* ── HEADER ── */}
-      <div style={{ padding: "16px 28px", borderBottom: "1px solid #1E1E28", display: "flex", justifyContent: "space-between", alignItems: "center", background: "linear-gradient(180deg, #111118 0%, #0C0C10 100%)" }}>
+  const inputStyle = { width: "100%", padding: "11px 14px", background: "#0C0C10", border: "1px solid #2A2A38", borderRadius: 8, color: "#EDE8E0", fontSize: 13, fontFamily: "monospace", outline: "none", boxSizing: "border-box" };
+  const textareaStyle = { width: "100%", minHeight: 150, background: "#111118", border: "1px solid #2A2A38", borderRadius: 10, padding: "14px 16px", color: "#EDE8E0", fontSize: 14, lineHeight: 1.75, fontFamily: "Palatino,Georgia,serif", resize: "vertical", outline: "none", boxSizing: "border-box" };
+  const primaryBtn = { padding: "13px 20px", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer", background: "linear-gradient(135deg,#348193,#4A9DAD)", border: "none", color: "#0C0C10" };
+  const ghostBtn   = { padding: "13px 20px", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer", background: "transparent", border: "1px solid #2A2A38", color: "#888" };
+  const slackBtn   = { padding: "13px 20px", borderRadius: 10, fontSize: 14, fontWeight: "bold", cursor: "pointer", background: "#1A1F2E", border: "1px solid #3A4A6A", color: "#8AAEE8" };
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#0C0C10", color: "#EDE8E0", fontFamily: "'Palatino Linotype','Book Antiqua',Palatino,Georgia,serif", display: "flex", flexDirection: "column" }}>
+      <div style={{ padding: "16px 28px", borderBottom: "1px solid #1E1E28", display: "flex", justifyContent: "space-between", alignItems: "center", background: "linear-gradient(180deg,#111118 0%,#0C0C10 100%)" }}>
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <EncoreLogo />
           <div style={{ fontSize: 11, letterSpacing: 4, color: "#348193", textTransform: "uppercase" }}>Daily Check-In</div>
         </div>
         <div style={{ textAlign: "right" }}>
           <div style={{ fontSize: 12, color: "#666" }}>{todayStr()}</div>
-          {step !== STEPS.SETUP && (
-            <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>
-              {step === STEPS.CHECKIN ? `${currentIdx + 1}/${TEAM_MEMBERS.length} reviewed` :
-               step === STEPS.PROCESSING ? "Extracting actions…" :
-               step === STEPS.REVIEW ? `${actionItems.length} action items` :
-               step === STEPS.SYNCING ? "Syncing…" : "Complete"}
-            </div>
-          )}
+          {step === STEPS.CHECKIN && <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>{currentIdx + 1}/{TEAM_MEMBERS.length} team</div>}
+          {step === STEPS.MARKETING && <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>📣 Marketing</div>}
+          {step === STEPS.WEEK && <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>📅 Week Ahead</div>}
+          {step === STEPS.REVIEW && <div style={{ fontSize: 10, color: "#348193", marginTop: 4, letterSpacing: 2, textTransform: "uppercase" }}>{actionItems.length} action items</div>}
         </div>
       </div>
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "28px", maxWidth: 680, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
 
-        {/* ══ SETUP ══ */}
         {step === STEPS.SETUP && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 8 }}>Connect your tools</div>
               <div style={{ fontSize: 14, color: "#888", lineHeight: 1.7 }}>Your notes save to Google Sheets and post a summary to Slack after each check-in.</div>
             </div>
-
-            {/* Google Sheets */}
             <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "20px 22px" }}>
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Google Sheets</div>
-              <div style={{ fontSize: 13, color: "#888", marginBottom: 8 }}>Paste your spreadsheet URL</div>
-              <input value={sheetUrl} onChange={e => { setSheetUrl(e.target.value); setSheetError(""); }}
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-                style={{ width: "100%", padding: "11px 14px", background: "#0C0C10", border: `1px solid ${sheetError ? "#8A3030" : "#2A2A38"}`, borderRadius: 8, color: "#EDE8E0", fontSize: 13, fontFamily: "monospace", outline: "none", boxSizing: "border-box" }} />
+              <input value={sheetUrl} onChange={e => { setSheetUrl(e.target.value); setSheetError(""); }} placeholder="https://docs.google.com/spreadsheets/d/..." style={{ ...inputStyle, border: `1px solid ${sheetError ? "#8A3030" : "#2A2A38"}` }} />
               {sheetError && <div style={{ fontSize: 12, color: "#E05050", marginTop: 6 }}>{sheetError}</div>}
             </div>
-
-            {/* Slack */}
             <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "20px 22px" }}>
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Slack <span style={{ color: "#444", fontWeight: "normal", letterSpacing: 0 }}>— optional</span></div>
-              <div style={{ fontSize: 13, color: "#888", marginBottom: 8 }}>Paste your Slack Incoming Webhook URL</div>
-              <input value={slackWebhook} onChange={e => setSlackWebhook(e.target.value)}
-                placeholder="https://hooks.slack.com/services/..."
-                style={{ width: "100%", padding: "11px 14px", background: "#0C0C10", border: "1px solid #2A2A38", borderRadius: 8, color: "#EDE8E0", fontSize: 13, fontFamily: "monospace", outline: "none", boxSizing: "border-box" }} />
-              <div style={{ fontSize: 12, color: "#555", marginTop: 8 }}>
-                Get this from api.slack.com/apps → Incoming Webhooks
-              </div>
+              <input value={slackWebhook} onChange={e => setSlackWebhook(e.target.value)} placeholder="https://hooks.slack.com/services/..." style={inputStyle} />
             </div>
-
-            <button onClick={handleSetup} style={{ padding: "14px 24px", background: "linear-gradient(135deg, #348193, #4A9DAD)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 15, fontWeight: "bold", cursor: "pointer" }}>
-              Begin Today's Check-In →
-            </button>
+            <button onClick={handleSetup} style={{ ...primaryBtn, padding: "14px 24px", fontSize: 15 }}>Begin Today's Check-In →</button>
             <div style={{ textAlign: "center" }}>
-              <button onClick={() => setStep(STEPS.CHECKIN)} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>
-                Skip — check in without saving
-              </button>
+              <button onClick={() => setStep(STEPS.CHECKIN)} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>Skip — check in without saving</button>
             </div>
           </div>
         )}
 
-        {/* ══ CHECK-IN ══ */}
         {step === STEPS.CHECKIN && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
-                <div style={{ fontSize: 11, color: "#666", letterSpacing: 2, textTransform: "uppercase" }}>Progress</div>
+                <div style={{ fontSize: 11, color: "#666", letterSpacing: 2, textTransform: "uppercase" }}>Team Check-In</div>
                 <div style={{ fontSize: 11, color: "#348193" }}>{currentIdx + 1} of {TEAM_MEMBERS.length}</div>
               </div>
               <div style={{ height: 3, background: "#1E1E28", borderRadius: 2 }}>
-                <div style={{ height: "100%", borderRadius: 2, width: `${(currentIdx / TEAM_MEMBERS.length) * 100}%`, background: "linear-gradient(90deg, #348193, #5BB0BF)", transition: "width 0.3s ease" }} />
+                <div style={{ height: "100%", borderRadius: 2, width: `${(currentIdx / TEAM_MEMBERS.length) * 100}%`, background: "linear-gradient(90deg,#348193,#5BB0BF)", transition: "width 0.3s ease" }} />
               </div>
             </div>
-
             <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 14, padding: "24px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, marginBottom: 20 }}>
-                <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(member.name), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: "bold", color: "#0C0C10" }}>
-                  {member.name[0]}
-                </div>
+                <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(member.name), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: "bold", color: "#0C0C10" }}>{member.name[0]}</div>
                 <div>
                   <div style={{ fontSize: 22, fontWeight: "bold" }}>{member.name}</div>
                   <div style={{ fontSize: 13, color: "#348193" }}>{member.role}</div>
+                  {member.slackId && <div style={{ fontSize: 11, color: "#444", marginTop: 2 }}>● on Slack</div>}
                 </div>
               </div>
               <div style={{ fontSize: 13, color: "#666", marginBottom: 10, letterSpacing: 1, textTransform: "uppercase" }}>Check-in notes</div>
               <textarea autoFocus value={notes[member.name] || ""} onChange={e => setNotes(prev => ({ ...prev, [member.name]: e.target.value }))}
-                placeholder={`What's on your mind for ${member.name}? Updates, action items, concerns, wins…`}
-                style={{ width: "100%", minHeight: 130, background: "#0C0C10", border: "1px solid #2A2A38", borderRadius: 10, padding: "14px 16px", color: "#EDE8E0", fontSize: 14, lineHeight: 1.75, fontFamily: "Palatino, Georgia, serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+                placeholder={`What's on your mind for ${member.name}? Updates, follow-ups, concerns, wins…`}
+                style={{ ...textareaStyle, minHeight: 140 }} />
             </div>
-
             <div style={{ display: "flex", gap: 12 }}>
-              {currentIdx > 0 && (
-                <button onClick={goBack} style={{ padding: "12px 20px", background: "transparent", border: "1px solid #2A2A38", borderRadius: 10, color: "#888", fontSize: 14, cursor: "pointer" }}>← Back</button>
-              )}
-              <button onClick={saveAndAdvance} style={{ flex: 1, padding: "13px 20px", background: "linear-gradient(135deg, #348193, #4A9DAD)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 15, fontWeight: "bold", cursor: "pointer" }}>
-                {currentIdx < TEAM_MEMBERS.length - 1 ? `Next: ${TEAM_MEMBERS[currentIdx + 1].name} →` : "Finish & Extract Action Items →"}
+              {currentIdx > 0 && <button onClick={goBack} style={ghostBtn}>← Back</button>}
+              <button onClick={saveAndAdvance} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>
+                {currentIdx < TEAM_MEMBERS.length - 1 ? `Next: ${TEAM_MEMBERS[currentIdx + 1].name} →` : "Continue to Marketing →"}
               </button>
             </div>
-
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
               {TEAM_MEMBERS.map((m, i) => (
-                <button key={m.name} onClick={() => setCurrentIdx(i)} style={{ width: 32, height: 32, borderRadius: "50%", background: i === currentIdx ? avatarColor(m.name) : notes[m.name]?.trim() ? "#1A2A1A" : "#111118", border: `1.5px solid ${i === currentIdx ? avatarColor(m.name) : notes[m.name]?.trim() ? "#3A6A3A" : "#2A2A38"}`, color: i === currentIdx ? "#0C0C10" : notes[m.name]?.trim() ? "#5ABF5A" : "#555", fontSize: 11, fontWeight: "bold", cursor: "pointer" }}>
+                <button key={m.name} onClick={() => setCurrentIdx(i)} title={m.name} style={{ width: 32, height: 32, borderRadius: "50%", background: i === currentIdx ? avatarColor(m.name) : notes[m.name] && notes[m.name].trim() ? "#1A2A1A" : "#111118", border: `1.5px solid ${i === currentIdx ? avatarColor(m.name) : notes[m.name] && notes[m.name].trim() ? "#3A6A3A" : "#2A2A38"}`, color: i === currentIdx ? "#0C0C10" : notes[m.name] && notes[m.name].trim() ? "#5ABF5A" : "#555", fontSize: 11, fontWeight: "bold", cursor: "pointer" }}>
                   {m.name[0]}
                 </button>
               ))}
@@ -300,80 +320,122 @@ Rules:
           </div>
         )}
 
-        {/* ══ PROCESSING ══ */}
+        {step === STEPS.MARKETING && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>📣 Marketing Check-In</div>
+              <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 8 }}>What needs promoting today?</div>
+              <div style={{ fontSize: 14, color: "#888", lineHeight: 1.7 }}>Think Instagram, Facebook, email, and ticketing for all upcoming shows, events, and auditions.</div>
+            </div>
+            <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "16px 18px" }}>
+              <div style={{ fontSize: 11, color: "#444", letterSpacing: 2, textTransform: "uppercase", marginBottom: 10 }}>Upcoming to consider</div>
+              {["🎭 Bright Lights of Broadway — April 16-18", "📚 Matilda Auditions — April 22 & 23", "✈️ Come From Away Page to Stage — April 22 & 25 (17 seats left!)", "🦁 Lion King Auditions — May 14"].map((e, i) => (
+                <div key={i} style={{ fontSize: 13, color: "#888", marginBottom: 6 }}>{e}</div>
+              ))}
+            </div>
+            <textarea value={marketingNotes} onChange={e => setMarketingNotes(e.target.value)}
+              placeholder="Any performances, events, or auditions that need promoting? What platforms, what messaging, what's the priority today?"
+              style={textareaStyle} />
+            <div style={{ display: "flex", gap: 12 }}>
+              <button onClick={() => setStep(STEPS.CHECKIN)} style={ghostBtn}>← Back</button>
+              <button onClick={() => setStep(STEPS.WEEK)} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>Continue to Week Ahead →</button>
+            </div>
+          </div>
+        )}
+
+        {step === STEPS.WEEK && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>📅 Week Ahead</div>
+              <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 8 }}>What's on your mind this week?</div>
+              <div style={{ fontSize: 14, color: "#888", lineHeight: 1.7 }}>Scheduled and unscheduled — things to prepare for, decisions to make, people to think about, intentions for the week.</div>
+            </div>
+            <textarea value={weekNotes} onChange={e => setWeekNotes(e.target.value)}
+              placeholder="What's coming up this week? What do you want to prepare for, follow up on, or keep top of mind? Include calendar items and anything swirling in your head…"
+              style={{ ...textareaStyle, minHeight: 180 }} />
+            <div style={{ display: "flex", gap: 12 }}>
+              <button onClick={() => setStep(STEPS.MARKETING)} style={ghostBtn}>← Back</button>
+              <button onClick={() => { setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>Finish & Extract Action Items →</button>
+            </div>
+          </div>
+        )}
+
         {step === STEPS.PROCESSING && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 48 }}>✦</div>
             <div style={{ fontSize: 20, fontWeight: "bold" }}>Reading your notes…</div>
-            <div style={{ fontSize: 14, color: "#888", maxWidth: 380, lineHeight: 1.7 }}>Claude is reviewing your notes and extracting action items by priority.</div>
+            <div style={{ fontSize: 14, color: "#888", maxWidth: 380, lineHeight: 1.7 }}>Claude is reviewing everything and extracting detailed action items by priority.</div>
             <div style={{ display: "flex", gap: 6 }}>
               {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#348193", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
             </div>
-            <style>{`@keyframes pulse { 0%,100%{opacity:0.2} 50%{opacity:1} }`}</style>
+            <style>{`@keyframes pulse{0%,100%{opacity:0.2}50%{opacity:1}}`}</style>
           </div>
         )}
 
-        {/* ══ REVIEW ══ */}
         {step === STEPS.REVIEW && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 6 }}>Today's Action Items</div>
               <div style={{ fontSize: 13, color: "#666" }}>{actionItems.length} items extracted from your check-in notes</div>
             </div>
-
             {actionItems.length === 0 ? (
               <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "24px", textAlign: "center", color: "#666" }}>No action items found today.</div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {["high","medium","low"].map(priority => {
-                  const items = actionItems.filter(a => a.priority === priority);
-                  if (!items.length) return null;
-                  const ps = priorityStyle(priority);
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {["team","marketing","week"].map(cat => {
+                  const catItems = actionItems.filter(a => a.category === cat);
+                  if (!catItems.length) return null;
                   return (
-                    <div key={priority}>
-                      <div style={{ fontSize: 10, color: ps.dot, letterSpacing: 3, textTransform: "uppercase", marginBottom: 8, display: "flex", alignItems: "center", gap: 6 }}>
-                        <div style={{ width: 6, height: 6, borderRadius: "50%", background: ps.dot }} />
-                        {priority} priority
-                      </div>
-                      {items.map((item, i) => (
-                        <div key={i} style={{ background: ps.bg, border: `1px solid ${ps.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, display: "flex", gap: 14, alignItems: "flex-start" }}>
-                          <div style={{ width: 30, height: 30, borderRadius: "50%", background: avatarColor(item.person), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: "bold", color: "#0C0C10", flexShrink: 0 }}>
-                            {item.person?.[0]}
+                    <div key={cat}>
+                      <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 10 }}>{sectionLabel[cat]}</div>
+                      {["high","medium","low"].map(priority => {
+                        const items = catItems.filter(a => a.priority === priority);
+                        if (!items.length) return null;
+                        const ps = priorityStyle(priority);
+                        return (
+                          <div key={priority} style={{ marginBottom: 10 }}>
+                            <div style={{ fontSize: 10, color: ps.dot, letterSpacing: 3, textTransform: "uppercase", marginBottom: 6, display: "flex", alignItems: "center", gap: 6 }}>
+                              <div style={{ width: 6, height: 6, borderRadius: "50%", background: ps.dot }} />{priority} priority
+                            </div>
+                            {items.map((item, i) => {
+                              const hasPerson = item.person && item.person !== "-" && item.person !== "—";
+                              return (
+                                <div key={i} style={{ background: ps.bg, border: `1px solid ${ps.border}`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, display: "flex", gap: 14, alignItems: "flex-start" }}>
+                                  {hasPerson && (
+                                    <div style={{ width: 30, height: 30, borderRadius: "50%", background: avatarColor(item.person), display: "flex", alignItems: "center", justifyContent: "center", fontSize: 12, fontWeight: "bold", color: "#0C0C10", flexShrink: 0 }}>
+                                      {item.person[0]}
+                                    </div>
+                                  )}
+                                  <div>
+                                    <div style={{ fontSize: 14, color: "#EDE8E0", lineHeight: 1.6 }}>{item.task}</div>
+                                    {hasPerson && <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>{item.person} · {item.role}</div>}
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
-                          <div>
-                            <div style={{ fontSize: 14, color: "#EDE8E0", lineHeight: 1.5 }}>{item.task}</div>
-                            <div style={{ fontSize: 11, color: "#666", marginTop: 4 }}>{item.person} · {item.role}</div>
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   );
                 })}
               </div>
             )}
-
             {syncError && <div style={{ background: "#1A1010", border: "1px solid #6A2020", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#E05050" }}>{syncError}</div>}
             {slackError && <div style={{ background: "#1A1010", border: "1px solid #6A2020", borderRadius: 10, padding: "12px 16px", fontSize: 13, color: "#E05050" }}>{slackError}</div>}
-
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-              {sheetUrl && (
-                <button onClick={syncToSheets} style={{ flex: 1, minWidth: 180, padding: "13px 20px", background: "linear-gradient(135deg, #348193, #4A9DAD)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 14, fontWeight: "bold", cursor: "pointer" }}>
-                  Save to Google Sheets →
-                </button>
-              )}
+              {sheetUrl && <button onClick={syncToSheets} style={{ flex: 1, minWidth: 180, ...primaryBtn }}>Save to Google Sheets →</button>}
               {slackWebhook && (
-                <button onClick={sendToSlack} disabled={slackSent || slackSending} style={{ flex: 1, minWidth: 180, padding: "13px 20px", background: slackSent ? "#101A10" : "#1A1F2E", border: `1px solid ${slackSent ? "#2A5A2A" : "#3A4A6A"}`, borderRadius: 10, color: slackSent ? "#50A050" : "#8AAEE8", fontSize: 14, fontWeight: "bold", cursor: slackSent ? "default" : "pointer" }}>
+                <button onClick={sendToSlack} disabled={slackSent || slackSending}
+                  style={{ flex: 1, minWidth: 180, ...(slackSent ? { ...slackBtn, background: "#101A10", border: "1px solid #2A5A2A", color: "#50A050" } : slackBtn) }}>
                   {slackSent ? "✓ Sent to Slack" : slackSending ? "Sending…" : "Post to Slack →"}
                 </button>
               )}
-              <button onClick={() => setStep(STEPS.DONE)} style={{ padding: "13px 20px", background: "transparent", border: "1px solid #2A2A38", borderRadius: 10, color: "#888", fontSize: 14, cursor: "pointer" }}>
-                {sheetUrl || slackWebhook ? "Skip" : "Finish"}
-              </button>
+              <button onClick={() => setStep(STEPS.DONE)} style={ghostBtn}>{sheetUrl || slackWebhook ? "Skip" : "Finish"}</button>
             </div>
           </div>
         )}
 
-        {/* ══ SYNCING ══ */}
         {step === STEPS.SYNCING && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 48 }}>📊</div>
@@ -382,7 +444,6 @@ Rules:
           </div>
         )}
 
-        {/* ══ DONE ══ */}
         {step === STEPS.DONE && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 56 }}>✦</div>
@@ -390,15 +451,12 @@ Rules:
             <div style={{ fontSize: 14, color: "#888", maxWidth: 380, lineHeight: 1.8 }}>
               {actionItems.length} action items extracted.{sheetUrl ? " Saved to Google Sheets." : ""}{slackSent ? " Summary posted to Slack." : ""}
             </div>
-
-            {/* Slack button on done screen too if not yet sent */}
             {slackWebhook && !slackSent && (
-              <button onClick={sendToSlack} disabled={slackSending} style={{ padding: "13px 28px", background: "#1A1F2E", border: "1px solid #3A4A6A", borderRadius: 10, color: "#8AAEE8", fontSize: 14, fontWeight: "bold", cursor: "pointer" }}>
+              <button onClick={sendToSlack} disabled={slackSending} style={slackBtn}>
                 {slackSending ? "Sending…" : "Post Summary to Slack →"}
               </button>
             )}
             {slackSent && <div style={{ fontSize: 13, color: "#50A050" }}>✓ Summary posted to Slack</div>}
-
             {actionItems.length > 0 && (
               <div style={{ background: "#111118", border: "1px solid #2A2A38", borderRadius: 12, padding: "16px 20px", width: "100%", textAlign: "left" }}>
                 <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 12 }}>Summary</div>
@@ -418,9 +476,8 @@ Rules:
                 })}
               </div>
             )}
-
-            <button onClick={() => { setStep(STEPS.SETUP); setCurrentIdx(0); setNotes({}); setActionItems([]); setSyncError(""); setSlackSent(false); setSlackError(""); }}
-              style={{ padding: "13px 28px", background: "linear-gradient(135deg, #348193, #4A9DAD)", border: "none", borderRadius: 10, color: "#0C0C10", fontSize: 15, fontWeight: "bold", cursor: "pointer" }}>
+            <button onClick={() => { setStep(STEPS.SETUP); setCurrentIdx(0); setNotes({}); setMarketingNotes(""); setActionItems([]); setSyncError(""); setSlackSent(false); setSlackError(""); }}
+              style={{ ...primaryBtn, padding: "13px 28px", fontSize: 15 }}>
               Start a New Check-In
             </button>
           </div>
