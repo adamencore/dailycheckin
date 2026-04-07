@@ -128,13 +128,15 @@ export default function EncoreCheckin() {
   useEffect(() => { localStorage.setItem(LS_WEEK, weekNotes); }, [weekNotes]);
   useEffect(() => { localStorage.setItem(LS_DASH, JSON.stringify(dashNotes)); }, [dashNotes]);
 
-  // Load notes from Netlify Blobs on startup
+  // Load notes from Netlify Blobs on startup — always finish in 3s max
   useEffect(() => {
+    const timeout = setTimeout(() => setLoading(false), 3000);
     async function loadSavedNotes() {
       try {
         const res = await fetch("/.netlify/functions/load-notes");
-        const { ok, data } = await res.json();
-        if (ok && data) {
+        const json = await res.json();
+        if (json && json.ok && json.data) {
+          const data = json.data;
           if (data.notes && Object.keys(data.notes).length) setNotes(data.notes);
           if (data.marketingNotes) setMarketingNotes(data.marketingNotes);
           if (data.weekNotes) setWeekNotes(data.weekNotes);
@@ -142,9 +144,11 @@ export default function EncoreCheckin() {
           setSavedDate(data.date || "");
         }
       } catch(e) { /* fail silently */ }
+      clearTimeout(timeout);
       setLoading(false);
     }
     loadSavedNotes();
+    return () => clearTimeout(timeout);
   }, []);
 
   function handleSetup() {
@@ -487,7 +491,7 @@ Rules:
         )}
 
         {/* ══ TEAM CHECK-IN ══ */}
-        {step === STEPS.CHECKIN && (
+        {!loading && step === STEPS.CHECKIN && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 6 }}>
@@ -553,7 +557,7 @@ Rules:
         )}
 
         {/* ══ WEEK AHEAD ══ */}
-        {step === STEPS.WEEK && (
+        {!loading && step === STEPS.WEEK && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>📅 Week Ahead</div>
