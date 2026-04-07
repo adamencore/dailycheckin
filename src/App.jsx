@@ -167,7 +167,7 @@ Rules:
     }
 
     try {
-      const res = await fetch("/api/slack", {
+      const res = await fetch("/.netlify/functions/slack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ webhookUrl: slackWebhook, payload: { blocks } }),
