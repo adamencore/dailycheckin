@@ -282,28 +282,64 @@ Rules:
       { type: "divider" },
     ];
 
-    categoryGroups.forEach(({ key, label }) => {
-      const catItems = actionItems.filter(a => a.category === key);
-      if (!catItems.length) return;
-      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${label}*` } });
-      ["high","medium","low"].forEach(p => {
-        const items = catItems.filter(a => a.priority === p);
-        if (!items.length) return;
-        blocks.push({ type: "section", text: { type: "mrkdwn", text: `${priorityEmoji[p]} *${p.charAt(0).toUpperCase() + p.slice(1)} Priority*` } });
-        items.forEach(item => {
-          const hasPerson = item.person && item.person !== "-" && item.person !== "—";
-          const mention = hasPerson ? `\n_${mentionOrName(item.person)} · ${item.role}_` : "";
-          blocks.push({ type: "section", text: { type: "mrkdwn", text: `• ${item.task}${mention}` } });
-        });
+    // ── SECTION 1: RAW NOTES ──
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: "*📝 Today's Notes*" } });
+
+    // Team notes
+    const teamWithNotes = TEAM_MEMBERS.filter(m => notes[m.name] && notes[m.name].trim());
+    if (teamWithNotes.length) {
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: "*👥 Team*" } });
+      teamWithNotes.forEach(m => {
+        const mention = slackIdMap[m.name] ? `<@${slackIdMap[m.name]}>` : m.name;
+        blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${mention}* · _${m.role}_\n${notes[m.name]}` } });
       });
-      blocks.push({ type: "divider" });
+    }
+
+    // Marketing notes
+    if (marketingNotes && marketingNotes.trim()) {
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*📣 Marketing*\n${marketingNotes}` } });
+    }
+
+    // Week ahead notes
+    if (weekNotes && weekNotes.trim()) {
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*📅 Week Ahead*\n${weekNotes}` } });
+    }
+
+    // Dashboard notes
+    DASHBOARD_CATEGORIES.forEach(cat => {
+      const filledItems = cat.items.filter(item => getDashNote(cat.id, item).trim());
+      if (!filledItems.length) return;
+      let dashText = `*${cat.label}*\n`;
+      filledItems.forEach(item => {
+        dashText += `• *${item}:* ${getDashNote(cat.id, item)}\n`;
+      });
+      blocks.push({ type: "section", text: { type: "mrkdwn", text: dashText.trim() } });
     });
 
-    if (weekNotes && weekNotes.trim()) {
-      blocks.push({ type: "section", text: { type: "mrkdwn", text: `*📝 On my mind this week*\n${weekNotes}` } });
-    }
+    blocks.push({ type: "divider" });
+
+    // ── SECTION 2: ACTION ITEMS ──
+    blocks.push({ type: "section", text: { type: "mrkdwn", text: `*✅ Action Items (${actionItems.length})*` } });
+
     if (actionItems.length === 0) {
       blocks.push({ type: "section", text: { type: "mrkdwn", text: "_No action items today._" } });
+    } else {
+      categoryGroups.forEach(({ key, label }) => {
+        const catItems = actionItems.filter(a => a.category === key);
+        if (!catItems.length) return;
+        blocks.push({ type: "section", text: { type: "mrkdwn", text: `*${label}*` } });
+        ["high","medium","low"].forEach(p => {
+          const items = catItems.filter(a => a.priority === p);
+          if (!items.length) return;
+          blocks.push({ type: "section", text: { type: "mrkdwn", text: `${priorityEmoji[p]} *${p.charAt(0).toUpperCase() + p.slice(1)} Priority*` } });
+          items.forEach(item => {
+            const hasPerson = item.person && item.person !== "-" && item.person !== "—";
+            const mention = hasPerson ? `\n_${mentionOrName(item.person)} · ${item.role}_` : "";
+            blocks.push({ type: "section", text: { type: "mrkdwn", text: `• ${item.task}${mention}` } });
+          });
+        });
+        blocks.push({ type: "divider" });
+      });
     }
 
     try {
