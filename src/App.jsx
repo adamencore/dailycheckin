@@ -21,9 +21,9 @@ const TEAM_MEMBERS = [
 const DASHBOARD_CATEGORIES = [
   { id: "projects",  label: "Projects",  icon: "/Projects.png",       color: "#27616e", lightColor: "#1A3D45", borderColor: "#5d9aa9", items: ["Junior Camps", "Sensory Friendly", "Fall Programming"] },
   { id: "finance",   label: "Finance",   icon: "/Cash.png",           color: "#348193", lightColor: "#1E5060", borderColor: "#5d9aa9", items: ["Budgets", "Contracts"] },
-  { id: "showprep",  label: "Show Prep", icon: "/Show_prep.png",      color: "#5d9aa9", lightColor: "#3A6A78", borderColor: "#85b3be", items: ["Team Support", "Opening Night", "Closing Night", "Sensory Friendly"] },
+  { id: "showprep",  label: "Show Prep", icon: "/Show prep.png",      color: "#5d9aa9", lightColor: "#3A6A78", borderColor: "#85b3be", items: ["Team Support", "Opening Night", "Closing Night", "Sensory Friendly"] },
   { id: "executive", label: "Executive", icon: "/Executive.png",      color: "#85b3be", lightColor: "#4A7A88", borderColor: "#aecdd4", items: ["Team Meetings & Communication", "Board Meetings", "Board Communication", "City Relationships", "Fundraising", "Grants", "Systems & Processes", "Growing the Team"] },
-  { id: "aspire",    label: "Aspire",    icon: "/Aspire_icon_4x.png", color: "#aecdd4", lightColor: "#6A9AA8", borderColor: "#ffffff", items: ["Team", "Families", "Show Planning", "Promotion", "Expansion", "Improvements"] },
+  { id: "aspire",    label: "Aspire",    icon: "/Aspire icon@4x.png", color: "#aecdd4", lightColor: "#6A9AA8", borderColor: "#ffffff", items: ["Team", "Families", "Show Planning", "Promotion", "Expansion", "Improvements"] },
 ];
 
 const UPCOMING_EVENTS = `- Bright Lights of Broadway (Aspire Performing Co.) — April 16-18, 2026 at the Electric Theater
@@ -74,6 +74,31 @@ export default function EncoreCheckin() {
 
   useEffect(() => { localStorage.setItem(LS_SHEET, sheetUrl); }, [sheetUrl]);
   useEffect(() => { localStorage.setItem(LS_SLACK, slackWebhook); }, [slackWebhook]);
+
+  // Load saved notes from server on startup
+  useEffect(() => {
+    fetch("/.netlify/functions/load-notes")
+      .then(r => r.json())
+      .then(({ ok, data }) => {
+        if (ok && data) {
+          if (data.notes) setNotes(data.notes);
+          if (data.marketingNotes) setMarketingNotes(data.marketingNotes);
+          if (data.weekNotes) setWeekNotes(data.weekNotes);
+          if (data.dashNotes) setDashNotes(data.dashNotes);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  async function saveNotes(n, mn, wn, dn) {
+    try {
+      await fetch("/.netlify/functions/save-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notes: n, marketingNotes: mn, weekNotes: wn, dashNotes: dn, date: new Date().toISOString().split("T")[0] }),
+      });
+    } catch(e) {}
+  }
 
   function handleSetup() {
     if (!sheetUrl.includes("docs.google.com/spreadsheets")) { setSheetError("Please paste a valid Google Sheets URL."); return; }
@@ -325,7 +350,7 @@ export default function EncoreCheckin() {
             })}
             <div style={{ display: "flex", gap: 12, marginTop: 8 }}>
               <button onClick={() => setStep(STEPS.WEEK)} style={G}>← Back</button>
-              <button onClick={() => { setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...P, fontSize: 15 }}>Finish & Extract Action Items →</button>
+              <button onClick={() => { saveNotes(notes, marketingNotes, weekNotes, dashNotes); setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...P, fontSize: 15 }}>Finish & Extract Action Items →</button>
             </div>
             <div style={{ textAlign: "center" }}><button onClick={() => setStep(STEPS.SETUP)} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>Save notes & return to home</button></div>
           </div>
