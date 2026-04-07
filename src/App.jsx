@@ -128,6 +128,25 @@ export default function EncoreCheckin() {
   useEffect(() => { localStorage.setItem(LS_WEEK, weekNotes); }, [weekNotes]);
   useEffect(() => { localStorage.setItem(LS_DASH, JSON.stringify(dashNotes)); }, [dashNotes]);
 
+  // Load notes from Netlify Blobs on startup
+  useEffect(() => {
+    async function loadSavedNotes() {
+      try {
+        const res = await fetch("/.netlify/functions/load-notes");
+        const { ok, data } = await res.json();
+        if (ok && data) {
+          if (data.notes && Object.keys(data.notes).length) setNotes(data.notes);
+          if (data.marketingNotes) setMarketingNotes(data.marketingNotes);
+          if (data.weekNotes) setWeekNotes(data.weekNotes);
+          if (data.dashNotes && Object.keys(data.dashNotes).length) setDashNotes(data.dashNotes);
+          setSavedDate(data.date || "");
+        }
+      } catch(e) { /* fail silently */ }
+      setLoading(false);
+    }
+    loadSavedNotes();
+  }, []);
+
   function handleSetup() {
     if (!sheetUrl.includes("docs.google.com/spreadsheets")) {
       setSheetError("Please paste a valid Google Sheets URL.");
@@ -168,6 +187,22 @@ export default function EncoreCheckin() {
 
   function dashNotesCount() {
     return Object.values(dashNotes).filter(v => v && v.trim()).length;
+  }
+
+  async function saveNotes() {
+    setSaveStatus("saving");
+    try {
+      await fetch("/.netlify/functions/save-notes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          notes, marketingNotes, weekNotes, dashNotes,
+          date: new Date().toISOString().split("T")[0],
+        }),
+      });
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus(""), 2000);
+    } catch(e) { setSaveStatus("error"); }
   }
 
   const extractActionItems = useCallback(async () => {
@@ -394,8 +429,20 @@ Rules:
 
       <div style={{ flex: 1, display: "flex", flexDirection: "column", padding: "28px", maxWidth: 680, width: "100%", margin: "0 auto", boxSizing: "border-box" }}>
 
+        {/* ══ LOADING ══ */}
+        {loading && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 16, textAlign: "center" }}>
+            <div style={{ fontSize: 48 }}>✦</div>
+            <div style={{ fontSize: 16, color: "#888" }}>Loading your notes…</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[0,1,2].map(i => <div key={i} style={{ width: 8, height: 8, borderRadius: "50%", background: "#348193", animation: `pulse 1.2s ease-in-out ${i * 0.2}s infinite` }} />)}
+            </div>
+            <style>{`@keyframes pulse{0%,100%{opacity:0.2}50%{opacity:1}}`}</style>
+          </div>
+        )}
+
         {/* ══ SETUP ══ */}
-        {step === STEPS.SETUP && (
+        {!loading && step === STEPS.SETUP && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 8 }}>Connect your tools</div>
@@ -419,6 +466,18 @@ Rules:
               </div>
               <button onClick={() => setStep(STEPS.DASHBOARD)} style={{ ...ghostBtn, padding: "8px 16px", fontSize: 13 }}>Open →</button>
             </div>
+
+            {/* Saved notes notice */}
+            {savedDate && (
+              <div style={{ background: "#0D1A1A", border: "1px solid #1E3A3A", borderRadius: 10, padding: "12px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ fontSize: 13, color: "#5d9aa9" }}>
+                  ✦ Notes loaded from {savedDate === new Date().toISOString().split("T")[0] ? "today" : savedDate}
+                </div>
+                <button onClick={saveNotes} style={{ background: "none", border: "1px solid #2A2A38", borderRadius: 6, color: "#666", fontSize: 12, cursor: "pointer", padding: "4px 10px" }}>
+                  {saveStatus === "saving" ? "Saving…" : saveStatus === "saved" ? "✓ Saved" : "Save now"}
+                </button>
+              </div>
+            )}
 
             <button onClick={handleSetup} style={{ ...primaryBtn, padding: "14px 24px", fontSize: 15 }}>Begin Today's Check-In →</button>
             <div style={{ textAlign: "center" }}>
@@ -470,7 +529,7 @@ Rules:
         )}
 
         {/* ══ MARKETING ══ */}
-        {step === STEPS.MARKETING && (
+        {!loading && step === STEPS.MARKETING && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>📣 Marketing Check-In</div>
@@ -512,7 +571,7 @@ Rules:
         )}
 
         {/* ══ DASHBOARD ══ */}
-        {step === STEPS.DASHBOARD && (
+        {!loading && step === STEPS.DASHBOARD && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
             <div>
               <div style={{ fontSize: 11, color: "#348193", letterSpacing: 3, textTransform: "uppercase", marginBottom: 6 }}>🗂️ Encore Dashboard</div>
@@ -592,7 +651,7 @@ Rules:
               {step === STEPS.DASHBOARD && (
                 <button onClick={() => setStep(STEPS.WEEK)} style={ghostBtn}>← Back</button>
               )}
-              <button onClick={() => { setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>
+              <button onClick={() => { saveNotes(); setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...primaryBtn, fontSize: 15 }}>
                 Finish & Extract Action Items →
               </button>
             </div>
@@ -607,7 +666,7 @@ Rules:
         )}
 
         {/* ══ PROCESSING ══ */}
-        {step === STEPS.PROCESSING && (
+        {!loading && step === STEPS.PROCESSING && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 48 }}>✦</div>
             <div style={{ fontSize: 20, fontWeight: "bold" }}>Reading your notes…</div>
@@ -620,7 +679,7 @@ Rules:
         )}
 
         {/* ══ REVIEW ══ */}
-        {step === STEPS.REVIEW && (
+        {!loading && step === STEPS.REVIEW && (
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             <div>
               <div style={{ fontSize: 22, fontWeight: "bold", marginBottom: 6 }}>Today's Action Items</div>
@@ -685,7 +744,7 @@ Rules:
         )}
 
         {/* ══ SYNCING ══ */}
-        {step === STEPS.SYNCING && (
+        {!loading && step === STEPS.SYNCING && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 48 }}>📊</div>
             <div style={{ fontSize: 20, fontWeight: "bold" }}>Saving to Google Sheets…</div>
@@ -694,7 +753,7 @@ Rules:
         )}
 
         {/* ══ DONE ══ */}
-        {step === STEPS.DONE && (
+        {!loading && step === STEPS.DONE && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, gap: 20, textAlign: "center" }}>
             <div style={{ fontSize: 56 }}>✦</div>
             <div style={{ fontSize: 24, fontWeight: "bold" }}>Check-in complete</div>
@@ -726,7 +785,14 @@ Rules:
                 })}
               </div>
             )}
-            <button onClick={() => { setStep(STEPS.SETUP); setCurrentIdx(0); setNotes({}); setMarketingNotes(""); setActionItems([]); setSyncError(""); setSlackSent(false); setSlackError(""); }}
+            <button onClick={() => { 
+              setStep(STEPS.SETUP); setCurrentIdx(0); setNotes({}); setMarketingNotes(""); 
+              setWeekNotes(""); setDashNotes({}); setActionItems([]); 
+              setSyncError(""); setSlackSent(false); setSlackError("");
+              setSavedDate(""); setSaveStatus("");
+              localStorage.removeItem(LS_WEEK);
+              localStorage.removeItem(LS_DASH);
+            }}
               style={{ ...primaryBtn, padding: "13px 28px", fontSize: 15 }}>
               Start a New Check-In
             </button>
