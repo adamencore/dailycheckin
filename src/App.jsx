@@ -103,7 +103,7 @@ Rules:
 - Assign priority: high = urgent/time-sensitive, medium = this week, low = when possible`;
 
     try {
-      const res = await fetch("/api/claude", {
+      const res = await fetch("/.netlify/functions/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
@@ -128,7 +128,7 @@ Rules:
     });
     const prompt = `You have access to Google Sheets. Append data to spreadsheet ID "${spreadsheetId}". First check if a header row exists in Sheet1; if not add: Date | Category | Person | Role | Notes | Action Items. Then append these rows: ${JSON.stringify(rows)}. Use sheets.spreadsheets.values.append to range "Sheet1!A:F".`;
     try {
-      const res = await fetch("/api/claude", {
+      const res = await fetch("/.netlify/functions/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }], mcp_servers: [{ type: "url", url: "https://gcal.mcp.claude.com/mcp", name: "google" }] }),
