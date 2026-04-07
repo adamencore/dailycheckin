@@ -128,28 +128,8 @@ export default function EncoreCheckin() {
   useEffect(() => { localStorage.setItem(LS_WEEK, weekNotes); }, [weekNotes]);
   useEffect(() => { localStorage.setItem(LS_DASH, JSON.stringify(dashNotes)); }, [dashNotes]);
 
-  // Load notes from Netlify Blobs on startup — always finish in 3s max
-  useEffect(() => {
-    const timeout = setTimeout(() => setLoading(false), 3000);
-    async function loadSavedNotes() {
-      try {
-        const res = await fetch("/.netlify/functions/load-notes");
-        const json = await res.json();
-        if (json && json.ok && json.data) {
-          const data = json.data;
-          if (data.notes && Object.keys(data.notes).length) setNotes(data.notes);
-          if (data.marketingNotes) setMarketingNotes(data.marketingNotes);
-          if (data.weekNotes) setWeekNotes(data.weekNotes);
-          if (data.dashNotes && Object.keys(data.dashNotes).length) setDashNotes(data.dashNotes);
-          setSavedDate(data.date || "");
-        }
-      } catch(e) { /* fail silently */ }
-      clearTimeout(timeout);
-      setLoading(false);
-    }
-    loadSavedNotes();
-    return () => clearTimeout(timeout);
-  }, []);
+  // Disable loading — show app immediately
+  useEffect(() => { setLoading(false); }, []);
 
   function handleSetup() {
     if (!sheetUrl.includes("docs.google.com/spreadsheets")) {
