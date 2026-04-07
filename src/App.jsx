@@ -103,7 +103,7 @@ Rules:
 - Assign priority: high = urgent/time-sensitive, medium = this week, low = when possible`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }] }),
@@ -128,7 +128,7 @@ Rules:
     });
     const prompt = `You have access to Google Sheets. Append data to spreadsheet ID "${spreadsheetId}". First check if a header row exists in Sheet1; if not add: Date | Category | Person | Role | Notes | Action Items. Then append these rows: ${JSON.stringify(rows)}. Use sheets.spreadsheets.values.append to range "Sheet1!A:F".`;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
+      const res = await fetch("/api/claude", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, messages: [{ role: "user", content: prompt }], mcp_servers: [{ type: "url", url: "https://gcal.mcp.claude.com/mcp", name: "google" }] }),
@@ -167,12 +167,14 @@ Rules:
     }
 
     try {
-      await fetch(slackWebhook, {
+      const res = await fetch("/api/slack", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ blocks }),
+        body: JSON.stringify({ webhookUrl: slackWebhook, payload: { blocks } }),
       });
-      setSlackSent(true);
+      const data = await res.json();
+      if (data.ok) { setSlackSent(true); }
+      else { setSlackError("Slack rejected the message. Check your webhook URL."); }
     } catch (e) {
       setSlackError("Couldn't send to Slack. Check your webhook URL.");
     }
