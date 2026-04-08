@@ -109,6 +109,7 @@ export default function EncoreCheckin() {
   function saveAndAdvance() {
     if (currentIdx < TEAM_MEMBERS.length - 1) { setCurrentIdx(i => i + 1); }
     else { setStep(STEPS.MARKETING); }
+    saveNotes(notes, marketingNotes, weekNotes, dashNotes);
   }
 
   function getDashNote(catId, item) { return dashNotes[catId + "::" + item] || ""; }
@@ -287,7 +288,7 @@ export default function EncoreCheckin() {
             <textarea value={marketingNotes} onChange={e => setMarketingNotes(e.target.value)} placeholder="Any performances, events, or auditions that need promoting? What platforms, what messaging, what's the priority today?" style={TA} />
             <div style={{ display: "flex", gap: 12 }}>
               <button onClick={() => setStep(STEPS.CHECKIN)} style={G}>← Back</button>
-              <button onClick={() => setStep(STEPS.WEEK)} style={{ flex: 1, ...P, fontSize: 15 }}>Continue to Week Ahead →</button>
+              <button onClick={() => { saveNotes(notes, marketingNotes, weekNotes, dashNotes); setStep(STEPS.WEEK); }} style={{ flex: 1, ...P, fontSize: 15 }}>Continue to Week Ahead →</button>
             </div>
           </div>
         )}
@@ -298,7 +299,7 @@ export default function EncoreCheckin() {
             <textarea value={weekNotes} onChange={e => setWeekNotes(e.target.value)} placeholder="What's coming up this week? What do you want to prepare for, follow up on, or keep top of mind?" style={{ ...TA, minHeight: 180 }} />
             <div style={{ display: "flex", gap: 12 }}>
               <button onClick={() => setStep(STEPS.MARKETING)} style={G}>← Back</button>
-              <button onClick={() => setStep(STEPS.DASHBOARD)} style={{ flex: 1, ...P, fontSize: 15 }}>Continue to Dashboard →</button>
+              <button onClick={() => { saveNotes(notes, marketingNotes, weekNotes, dashNotes); setStep(STEPS.DASHBOARD); }} style={{ flex: 1, ...P, fontSize: 15 }}>Continue to Dashboard →</button>
             </div>
           </div>
         )}
@@ -337,7 +338,7 @@ export default function EncoreCheckin() {
                             </button>
                             {isOpen && (
                               <div style={{ padding: "0 16px 12px", background: hasNote ? cat.color + "11" : "#0C0C10" }}>
-                                <textarea autoFocus value={note} onChange={e => setDashNote(cat.id, item, e.target.value)} placeholder={"What's on your mind about " + item + "?"} style={{ width: "100%", minHeight: 90, background: "transparent", border: "none", borderTop: "1px solid " + cat.borderColor + "30", padding: "12px 0 0", color: "#EDE8E0", fontSize: 14, lineHeight: 1.7, fontFamily: "Palatino,Georgia,serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
+                                <textarea autoFocus value={note} onChange={e => setDashNote(cat.id, item, e.target.value)} onBlur={() => saveNotes(notes, marketingNotes, weekNotes, {...dashNotes, [cat.id + "::" + item]: note})} placeholder={"What's on your mind about " + item + "?"} style={{ width: "100%", minHeight: 90, background: "transparent", border: "none", borderTop: "1px solid " + cat.borderColor + "30", padding: "12px 0 0", color: "#EDE8E0", fontSize: 14, lineHeight: 1.7, fontFamily: "Palatino,Georgia,serif", resize: "vertical", outline: "none", boxSizing: "border-box" }} />
                               </div>
                             )}
                           </div>
@@ -352,7 +353,7 @@ export default function EncoreCheckin() {
               <button onClick={() => setStep(STEPS.WEEK)} style={G}>← Back</button>
               <button onClick={() => { saveNotes(notes, marketingNotes, weekNotes, dashNotes); setStep(STEPS.PROCESSING); extractActionItems(); }} style={{ flex: 1, ...P, fontSize: 15 }}>Finish & Extract Action Items →</button>
             </div>
-            <div style={{ textAlign: "center" }}><button onClick={() => setStep(STEPS.SETUP)} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>Save notes & return to home</button></div>
+            <div style={{ textAlign: "center" }}><button onClick={() => { saveNotes(notes, marketingNotes, weekNotes, dashNotes); setStep(STEPS.SETUP); }} style={{ background: "none", border: "none", color: "#555", fontSize: 13, cursor: "pointer", textDecoration: "underline" }}>Save notes & return to home</button></div>
           </div>
         )}
 
