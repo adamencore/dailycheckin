@@ -1,5 +1,3 @@
-const { getStore } = require("@netlify/blobs");
-
 exports.handler = async (event) => {
   const headers = {
     "Access-Control-Allow-Origin": "*",
@@ -13,21 +11,18 @@ exports.handler = async (event) => {
   }
 
   try {
-    const store = getStore("checkin-notes");
-    const data = await store.get("latest", { type: "json" });
+    const apiKey = process.env.JSONBIN_API_KEY;
+    const binId = process.env.JSONBIN_BIN_ID;
 
-    if (!data) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ ok: true, data: null }),
-      };
-    }
+    const res = await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`, {
+      headers: { "X-Master-Key": apiKey },
+    });
 
+    const data = await res.json();
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ ok: true, data }),
+      body: JSON.stringify({ ok: true, data: data.record || null }),
     };
   } catch (err) {
     return {
